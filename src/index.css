@@ -1,0 +1,156 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+:root[data-theme="light"], :root {
+  --bg-page: #F3F4F6;
+  --bg-panel: #FFFFFF;
+  --bg-elevated: #FFFFFF;
+  --border-light: #E5E7EB;
+  --border-medium: #D1D5DB;
+  --text-primary: #111827;
+  --text-secondary: #6B7280;
+  --text-muted: #9CA3AF;
+  --accent: #06B6D4;
+  --accent-hover: #0891B2;
+  --accent-subtle: #ECFEFF;
+  --success: #10B981;
+  --warning: #F59E0B;
+  --error: #EF4444;
+  --grid-line: #E5E7EB;
+}
+
+:root[data-theme="dark"] {
+  --bg-page: #0D1117;
+  --bg-panel: #161B22;
+  --bg-elevated: #1C2128;
+  --border-light: #30363D;
+  --border-medium: #3D444D;
+  --text-primary: #E6EDF3;
+  --text-secondary: #9CA3AF;
+  --text-muted: #6B7280;
+  --accent: #06B6D4;
+  --accent-hover: #22D3EE;
+  --accent-subtle: #0E2A33;
+  --success: #10B981;
+  --warning: #F59E0B;
+  --error: #EF4444;
+  --grid-line: #21262D;
+}
+
+@theme {
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --color-page-bg: var(--bg-page);
+  --color-panel-white: var(--bg-panel);
+  --color-bg-elevated: var(--bg-elevated);
+  --color-primary-cyan: var(--accent);
+  --color-primary-cyan-hover: var(--accent-hover);
+  --color-accent-subtle: var(--accent-subtle);
+  --color-border-light: var(--border-light);
+  --color-border-medium: var(--border-medium);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-success-green: var(--success);
+  --color-warning-amber: var(--warning);
+  --color-error-red: var(--error);
+  --color-dark-panel: #0D1117;
+  --color-dark-surface: #111827;
+}
+
+@layer base {
+  body {
+    background-color: var(--bg-page);
+    color: var(--text-primary);
+    font-family: 'Inter', sans-serif;
+    margin: 0;
+    height: 100vh;
+    overflow: hidden;
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+}
+
+/* Custom Scrollbar Styles */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-page);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-medium);
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Background grid pattern */
+.bg-grid-pattern {
+  background-size: 20px 20px;
+  background-image: 
+    linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+}
+
+/* Animations */
+@keyframes slide-up {
+  from {
+    transform: translateY(12px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes cyan-pulse {
+  0%, 100% {
+    border-color: #E5E7EB;
+  }
+  50% {
+    border-color: #06B6D4;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.4s ease-out forwards;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-in-out forwards;
+}
+
+.animate-cyan-pulse {
+  animation: cyan-pulse 2s infinite ease-in-out;
+}
+
+.shimmer-loader {
+  background: linear-gradient(90deg, #F3F4F6 25%, #E5E7EB 50%, #F3F4F6 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite linear;
+}
