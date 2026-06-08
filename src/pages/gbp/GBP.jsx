@@ -1,35 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { useLocation, useNavigate, useParams, Link } from 'react-router-dom';
-import { useApp } from '../../context/AppContext';
-import { supabase } from '../../lib/supabase';
-import { 
-  Sparkles, Save, Eye, Check, ChevronDown, ChevronRight,
-  Upload, MessageSquare, Plus, ArrowUpRight, Award,
-  Trash2, Globe, Star, MapPin, EyeOff, Edit, ShieldAlert
-} from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import React from 'react';
+import ComingSoon from '../../components/ComingSoon';
 
 export default function GBP() {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const currentPath = location.pathname;
-
-  if (currentPath === '/gbp/edit') {
-    return <GBPListingEditor />;
-  } else if (currentPath === '/gbp/posts/new') {
-    return <GBPPostCreator />;
-  } else if (currentPath === '/gbp/photos') {
-    return <GBPPhotoManager />;
-  } else if (currentPath === '/gbp/qa') {
-    return <GBPQAManager />;
-  } else if (currentPath === '/gbp/audit') {
-    return <GBPAuditor />;
-  } else if (currentPath === '/gbp/locations') {
-    return <GBPMultiLocation />;
-  } else {
-    return <GBPDashboard />;
-  }
+  return <ComingSoon title="GBP Listing" />;
 }
+
 
 // ----------------------------------------------------
 // Sub-Page 1: GBP Dashboard

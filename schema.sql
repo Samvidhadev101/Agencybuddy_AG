@@ -96,6 +96,9 @@ CREATE TABLE seo_audits (
   content_score integer,
   mobile_score integer,
   findings jsonb,
+  raw_data jsonb,
+  pagespeed_mobile jsonb,
+  pagespeed_desktop jsonb,
   recommendations jsonb,
   tokens_used integer DEFAULT 0,
   created_at timestamptz DEFAULT now()
@@ -112,6 +115,23 @@ CREATE TABLE keyword_trackers (
   cpc numeric,
   last_checked timestamptz,
   created_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE keyword_research_results (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  agency_id uuid REFERENCES agencies NOT NULL,
+  client_id uuid REFERENCES clients NOT NULL,
+  seed_keyword text NOT NULL,
+  keywords_json jsonb,
+  created_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE keyword_serp_cache (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  keyword text NOT NULL,
+  location text DEFAULT 'India',
+  serp_json jsonb,
+  fetched_at timestamptz DEFAULT now()
 );
 
 -- GBP (Google Business Profile)

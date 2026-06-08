@@ -57,6 +57,22 @@
   --color-error-red: var(--error);
   --color-dark-panel: #0D1117;
   --color-dark-surface: #111827;
+
+  /* Explicit HEX overrides for Tailwind v4 default colors used in audits to prevent html2canvas oklch parsing errors */
+  --color-red-50: #fef2f2;
+  --color-red-100: #fee2e2;
+  --color-red-200: #fecaca;
+  --color-red-700: #b91c1c;
+  --color-red-800: #991b1b;
+  --color-amber-50: #fffbeb;
+  --color-amber-100: #fef3c7;
+  --color-amber-700: #b45309;
+  --color-amber-800: #92400e;
+  --color-emerald-50: #ecfdf5;
+  --color-emerald-100: #d1fae5;
+  --color-emerald-700: #047857;
+  --color-emerald-800: #065f46;
+  --color-cyan-50: #ecfeff;
 }
 
 @layer base {

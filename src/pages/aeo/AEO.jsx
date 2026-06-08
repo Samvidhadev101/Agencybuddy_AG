@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import { supabase } from '../../lib/supabase';
@@ -6,7 +6,7 @@ import AiWarningBanner from '../../components/AiWarningBanner';
 import { 
   Sparkles, ShieldAlert, Award, Globe, Plus, 
   ArrowUpRight, ChevronDown, ChevronRight, CheckCircle2, 
-  Check, X, RefreshCw, BarChart3, AlertCircle 
+  Check, X, RefreshCw, BarChart3, AlertCircle, Download, Loader2 
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -202,17 +202,21 @@ function AEOAuditRunner() {
     
     setGenerating(true);
     try {
-      const { data } = await supabase.functions.invoke('ai-generate', {
+      const { data, error } = await supabase.functions.invoke('ai-generate', {
         body: {
           action: 'aeo-query-gen',
           input: { clientName: brand, industry: activeClient?.industry || 'services' },
           agency_id: agency.id
         }
       });
+      if (error) throw error;
+      if (!data || !data.output) throw new Error("No output received from AI");
+      
       const generated = JSON.parse(data.output);
       setQueriesList(generated.slice(0, 5).map(q => ({ text: q, status: 'pending' }))); // Limit to 5 for UI default
     } catch (e) {
-      alert('Failed generating queries.');
+      console.error(e);
+      alert('Failed generating queries: ' + (e.message || e || 'Unknown error'));
     } finally {
       setGenerating(false);
     }
@@ -558,6 +562,8 @@ function AEOAuditResults() {
   const [scoreData, setScoreData] = useState(null);
   const [checks, setChecks] = useState([]);
   const [expandedRow, setExpandedRow] = useState(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const printRef = useRef();
 
   useEffect(() => {
     const scores = JSON.parse(localStorage.getItem('db_aeo_scores') || '[]');
@@ -585,6 +591,27 @@ function AEOAuditResults() {
     }
   }, [scoreId]);
 
+  const handleExportPDF = async () => {
+    if (!scoreData || !printRef.current) return;
+    try {
+      setIsExporting(true);
+      const html2pdf = (await import('html2pdf.js')).default;
+      const opt = {
+        margin: [10, 10, 10, 10],
+        filename: `aeo-audit-${activeClient?.name?.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'report'}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+      await html2pdf().set(opt).from(printRef.current).save();
+    } catch (e) {
+      console.error('PDF generation failed', e);
+      alert('Failed to generate PDF. Check console for details.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   if (!scoreData) return <div className="p-8 text-center text-xs">Loading Results...</div>;
 
   return (
@@ -596,10 +623,18 @@ function AEOAuditResults() {
         </div>
         <div className="flex justify-end gap-3 p-4 border-t border-border-light bg-page-bg/50">
           <button onClick={() => navigate('/aeo/recommendations')} disabled={!isAiEnabled()} title={!isAiEnabled() ? 'AI access not enabled for your account' : ''} className="bg-primary-cyan text-white px-3 py-1.5 rounded text-xs font-bold disabled:opacity-50">Get Recommendations</button>
-          <button className="border border-border-light bg-panel-white text-text-primary px-3 py-1.5 rounded text-xs font-bold cursor-not-allowed">Export PDF</button>
+          <button 
+            onClick={handleExportPDF} 
+            disabled={isExporting}
+            className={`border border-border-light bg-panel-white text-text-primary px-3 py-1.5 rounded text-xs font-bold flex items-center gap-1.5 ${isExporting ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-page-bg'}`}
+          >
+            {isExporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+            {isExporting ? 'Exporting...' : 'Export PDF'}
+          </button>
         </div>
       </div>
 
+      <div ref={printRef} className="space-y-6 pb-6">
       <div className="bg-dark-panel rounded-lg shadow p-6 flex flex-col md:flex-row items-center justify-between text-white overflow-hidden h-32 select-none relative">
         <div className="space-y-1 z-10">
           <span className="font-mono text-[10px] font-bold text-primary-cyan uppercase">Overall Visibility Score</span>
@@ -666,6 +701,7 @@ function AEOAuditResults() {
             ))}
           </tbody>
         </table>
+      </div>
       </div>
     </div>
   );

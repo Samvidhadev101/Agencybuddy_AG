@@ -1,31 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { useLocation, useNavigate, Link } from 'react-router-dom';
-import { useApp } from '../../context/AppContext';
-import { supabase } from '../../lib/supabase';
-import { 
-  Sparkles, Star, Heart, CheckCircle2, ChevronRight,
-  Plus, Calendar, FolderKanban, Upload, Search, Check, X,
-  ThumbsUp, ThumbsDown, Copy, Edit, Trash2, ArrowUpRight, ShieldAlert 
-} from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import AiOutputBadge from '../../components/AiOutputBadge';
+import React from 'react';
+import ComingSoon from '../../components/ComingSoon';
 
 export default function Reputation() {
-  const location = useLocation();
-  const currentPath = location.pathname;
-
-  if (currentPath === '/reputation/respond') {
-    return <ReviewResponder />;
-  } else if (currentPath === '/reputation/generate') {
-    return <ReviewGeneration />;
-  } else if (currentPath === '/reputation/mentions') {
-    return <BrandMentions />;
-  } else if (currentPath === '/reputation/crisis') {
-    return <CrisisDashboard />;
-  } else {
-    return <ReputationDashboard />;
-  }
+  return <ComingSoon title="Reputation" />;
 }
+
 
 // ----------------------------------------------------
 // Sub-Page 1: Reputation Dashboard

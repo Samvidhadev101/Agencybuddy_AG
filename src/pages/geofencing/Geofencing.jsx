@@ -1,21 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { useLocation, useNavigate, Link } from 'react-router-dom';
-import { useApp } from '../../context/AppContext';
-import { supabase } from '../../lib/supabase';
-import { MapPin, Target, Smartphone, Sparkles, AlertCircle, Play, CheckCircle2 } from 'lucide-react';
-import AiOutputBadge from '../../components/AiOutputBadge';
+import React from 'react';
+import ComingSoon from '../../components/ComingSoon';
 
 export default function Geofencing() {
-  const location = useLocation();
-  const currentPath = location.pathname;
-
-  if (currentPath === '/geofencing/campaigns') {
-    return <GeoCampaignBuilder />;
-  } else if (currentPath === '/geofencing/competitors') {
-    return <GeoCompetitorsConquest />;
-  } else {
-    return <GeoDashboard />;
-  }
+  return <ComingSoon title="Geo-fencing" />;
 }
 
 // ----------------------------------------------------

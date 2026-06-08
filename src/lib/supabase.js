@@ -185,35 +185,6 @@ function getMockOutput(action, input) {
   const reviewerName = input?.reviewerName || 'Customer';
 
   switch (action) {
-    case 'seo-audit':
-      return JSON.stringify({
-        score: 84,
-        onpage: 88,
-        technical: 76,
-        content: 90,
-        mobile: 82,
-        findings: [
-          {
-            severity: "critical",
-            title: "Missing LocalBusiness Schema Markup",
-            description: "No JSON-LD schema detected for local business addresses.",
-            recommendation: "Implement LocalBusiness schema on the homepage footer."
-          },
-          {
-            severity: "warning",
-            title: "Large Hero Banner Images",
-            description: "Image size is 2.4MB, which slows mobile loading speeds.",
-            recommendation: "Compress header banners to modern webp formats under 200KB."
-          },
-          {
-            severity: "good",
-            title: "Valid SSL Configuration",
-            description: "HTTPS connection is secure and valid.",
-            recommendation: "No actions required."
-          }
-        ]
-      });
-
     case 'keyword-research':
       return JSON.stringify([
         { keyword: `best ${topic || 'services'} near me`, volume: 1200, difficulty: 24, cpc: 1.85 },
@@ -295,7 +266,7 @@ function getMockOutput(action, input) {
   }
 }
 
-async function callAI(prompt, systemPrompt, agencyId) {
+async function callAI(prompt, systemPrompt, agencyId, jsonMode = false, isSerp = false) {
   const agencies = JSON.parse(localStorage.getItem('db_agencies') || '[]');
   const agency = agencies.find(a => a.id === agencyId);
 
@@ -307,10 +278,22 @@ async function callAI(prompt, systemPrompt, agencyId) {
   }
 
   const apiKey = agency.openrouter_api_key;
-  const model = agency.preferred_model || 'google/gemini-2.0-flash-exp:free';
-
-  try {
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+  let model = agency.preferred_model || 'google/gemini-2.0-flash-exp:free';
+  if (isSerp) {
+    model = 'perplexity/sonar';
+  }
+  
+  const body = {
+      model: model,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: prompt }
+      ],
+      temperature: 0.7,
+      max_tokens: 4096
+    };
+    try {
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -318,15 +301,7 @@ async function callAI(prompt, systemPrompt, agencyId) {
         'HTTP-Referer': 'https://agencyos.in',
         'X-Title': 'Agency OS'
       },
-      body: JSON.stringify({
-        model: model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.7,
-        max_tokens: 4096
-      })
+      body: JSON.stringify(body)
     });
 
     const data = await response.json();
@@ -443,12 +418,25 @@ async function generateAIContent(action, input, agencyId) {
       systemPrompt = "You are a hyper-local geofenced notifications copywriter. Write a brief, high-conversion mobile push notification under 160 characters containing an offer/CTA.";
       userPrompt = `Write a geofenced promo message for visitors walking near "${clientName}" (Industry: "${industry}").`;
       break;
+    case 'keyword-serp':
+      systemPrompt = "You are a SERP analyzer. Return ONLY a valid JSON object matching this schema: { \"results\": [ { \"position\": 1, \"url\": \"string\", \"domain\": \"string\", \"page_title\": \"string\", \"summary\": \"string\" } ], \"content_gaps\": [ \"string\" ] }. Do not include markdown code block wrappers.";
+      userPrompt = `Perform a live web search for the keyword "${input.keyword}" in location "${input.location}". Summarize the top 10 organic search results and identify 2-3 content gaps.`;
+      break;
+    case 'keyword-enrich':
+      systemPrompt = "You are an SEO strategist. Return ONLY valid JSON: { \"clusters\": [{ \"cluster_name\": \"string\", \"keywords\": [{ \"keyword\": \"string\", \"intent\": \"informational|commercial|transactional|navigational\", \"competition\": \"high|medium|low\", \"priority\": 1-10 }]}] }";
+      userPrompt = `Here is a list of keywords for a ${input.industry} business: ${input.keywords}. For each keyword return: intent, competition, and priority score 1-10. Group them into 4-8 topic clusters.`;
+      break;
     default:
       systemPrompt = "You are a helpful AI assistant.";
       userPrompt = `Execute operation ${action} with input parameters: ${JSON.stringify(input)}.`;
   }
 
-  const aiResult = await callAI(userPrompt, systemPrompt, agencyId);
+  // Check if the action expects a structured JSON output
+  const isJsonAction = ['seo-audit', 'keyword-research', 'gbp-qa-seed', 'aeo-query-gen', 'aeo-audit', 'aeo-recommendations', 'keyword-serp', 'keyword-enrich'].includes(action);
+
+  const isSerpAction = action === 'keyword-serp';
+
+  const aiResult = await callAI(userPrompt, systemPrompt, agencyId, isJsonAction, isSerpAction);
 
   if (!aiResult.success) {
     return { error: aiResult.text };
@@ -457,9 +445,7 @@ async function generateAIContent(action, input, agencyId) {
   let contentText = aiResult.text;
   const modelName = aiResult.modelName || 'OpenRouter AI';
 
-  // Check if the action expects a structured JSON output
-  const isJsonAction = ['seo-audit', 'keyword-research', 'gbp-qa-seed', 'aeo-query-gen', 'aeo-audit'].includes(action);
-  
+
   if (isJsonAction) {
     try {
       const cleaned = cleanJson(contentText);
@@ -536,7 +522,7 @@ async function runAeoCheckMultiModel(body, matchedAgency) {
   const models = [
     { id: 'openai/gpt-4o-mini', platform: 'chatgpt' },
     { id: 'google/gemini-2.0-flash-exp', platform: 'gemini' },
-    { id: 'perplexity/llama-3.1-sonar-small-128k-online', platform: 'perplexity' },
+    { id: 'perplexity/sonar', platform: 'perplexity' },
     { id: 'anthropic/claude-3.5-haiku', platform: 'claude' }
   ];
 
@@ -901,7 +887,69 @@ export const supabase = {
          return res;
       }
 
+      if (functionName === 'keyword-serp') {
+        return await simulateAiGenerate({ action: 'keyword-serp', input: body, agency_id: body.agency_id });
+      }
+
+      if (functionName === 'keyword-enrich') {
+        return await simulateAiGenerate({ action: 'keyword-enrich', input: body, agency_id: body.agency_id });
+      }
+
       return simulateAiGenerate(body);
     }
   }
 };
+
+
+export async function getSERP(keyword, location, agencyId) {
+  try {
+    const cacheDb = JSON.parse(localStorage.getItem('db_keyword_serp_cache') || '[]');
+    const cachedItem = cacheDb.find(c => c.keyword.toLowerCase() === keyword.toLowerCase() && c.location === location);
+    
+    if (cachedItem) {
+      const fetchedAt = new Date(cachedItem.fetched_at);
+      const daysOld = (new Date() - fetchedAt) / (1000 * 60 * 60 * 24);
+      if (daysOld < 7) {
+        return { success: true, text: cachedItem.serp_json, cached: true, fetched_at: cachedItem.fetched_at };
+      }
+    }
+
+    const { data, error } = await supabase.functions.invoke('keyword-serp', {
+      body: { keyword, location, agency_id: agencyId }
+    });
+    if (error) throw error;
+    
+    let resultJson = null;
+    if (data && data.output) {
+      try {
+        resultJson = typeof data.output === 'string' ? JSON.parse(data.output) : data.output;
+      } catch (e) {
+        resultJson = { results: [], content_gaps: [], raw: data.output };
+      }
+    } else if (data && data.success) {
+      resultJson = data;
+    } else {
+      resultJson = { results: [], content_gaps: [], raw: data?.text || 'Failed to fetch SERP data' };
+    }
+
+    // Save to cache
+    const newCacheItem = {
+      id: 'ksc_' + Math.random().toString(36).substring(2, 9),
+      keyword,
+      location,
+      serp_json: resultJson,
+      fetched_at: new Date().toISOString()
+    };
+    
+    // Remove old cache for this keyword if exists
+    const updatedCacheDb = cacheDb.filter(c => !(c.keyword.toLowerCase() === keyword.toLowerCase() && c.location === location));
+    updatedCacheDb.push(newCacheItem);
+    localStorage.setItem('db_keyword_serp_cache', JSON.stringify(updatedCacheDb));
+    window.dispatchEvent(new Event('local_db_change'));
+
+    return { success: true, text: resultJson, cached: false, fetched_at: newCacheItem.fetched_at };
+  } catch (err) {
+    console.error('SERP Error:', err);
+    return { success: false, text: err.message || err || 'Unknown error occurred' };
+  }
+}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate, Link, useParams } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import { supabase } from '../../lib/supabase';
@@ -6,7 +6,8 @@ import AiWarningBanner from '../../components/AiWarningBanner';
 import { 
   Globe, Plus, Sparkles, ChevronDown, ChevronRight, 
   ArrowUpRight, ArrowDownRight, FileText, CheckCircle2, 
-  AlertTriangle, Play, Download, Search, AlertCircle 
+  AlertTriangle, Play, Download, Search, AlertCircle, Loader2,
+  X, ExternalLink, RefreshCw, Lightbulb, BarChart2
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -367,6 +368,8 @@ function SEOAuditResults() {
   const auditId = location.pathname.split('/').pop();
   const navigate = useNavigate();
   const [audit, setAudit] = useState(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const printRef = useRef();
 
   useEffect(() => {
     if (auditId) {
@@ -404,6 +407,27 @@ function SEOAuditResults() {
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (audit.overall_score / 100) * circumference;
 
+  const handleExportPDF = async () => {
+    if (!audit || !printRef.current) return;
+    try {
+      setIsExporting(true);
+      const html2pdf = (await import('html2pdf.js')).default;
+      const opt = {
+        margin: [10, 10, 10, 10],
+        filename: `seo-audit-${audit.url.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+      await html2pdf().set(opt).from(printRef.current).save();
+    } catch (e) {
+      console.error('PDF generation failed', e);
+      alert('Failed to generate PDF.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div className="space-y-6 font-sans animate-fade-in">
       
@@ -424,15 +448,17 @@ function SEOAuditResults() {
 
         <div className="flex items-center gap-2 select-none">
           <button 
-            onClick={() => alert('PDF export generated. Check output artifact downloads.')}
-            className="flex items-center gap-1.5 px-3 py-1.5 border border-border-light hover:border-border-medium rounded text-xs font-medium text-text-secondary hover:text-text-primary bg-panel-white transition-colors cursor-pointer"
+            onClick={handleExportPDF}
+            disabled={isExporting}
+            className={`flex items-center gap-1.5 px-3 py-1.5 border border-border-light hover:border-border-medium rounded text-xs font-medium text-text-secondary hover:text-text-primary bg-panel-white transition-colors ${isExporting ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
           >
-            <Download size={13} />
-            <span>Export PDF</span>
+            {isExporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+            <span>{isExporting ? 'Exporting...' : 'Export PDF'}</span>
           </button>
         </div>
       </div>
 
+      <div ref={printRef} className="space-y-6 pb-6">
       {/* Overall Score Circle Gauge */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         
@@ -512,9 +538,9 @@ function SEOAuditResults() {
           {/* New Format (Array of objects) */}
           {Array.isArray(audit.findings) && audit.findings.map((finding, i) => (
             <div key={`find-${i}`} className={`border rounded p-4 space-y-1.5 ${
-              finding.severity === 'critical' ? 'border-red-100 bg-red-50/20' :
-              finding.severity === 'warning' ? 'border-amber-100 bg-amber-50/20' :
-              'border-emerald-100 bg-emerald-50/20'
+              finding.severity === 'critical' ? 'border-red-100 bg-red-50' :
+              finding.severity === 'warning' ? 'border-amber-100 bg-amber-50' :
+              'border-emerald-100 bg-emerald-50'
             }`}>
               <div className="flex items-center justify-between mb-2">
                 <span className="font-mono text-[10px] font-bold text-text-secondary uppercase">{finding.parameter || 'Analysis'}</span>
@@ -540,7 +566,7 @@ function SEOAuditResults() {
 
           {/* Fallback for Old Format (Object with critical/warnings arrays) */}
           {!Array.isArray(audit.findings) && Array.isArray(audit.findings?.critical) && audit.findings.critical.map((title, i) => (
-            <div key={`crit-${i}`} className="border border-red-100 rounded bg-red-50/20 p-4 space-y-1.5">
+            <div key={`crit-${i}`} className="border border-red-100 rounded bg-red-50 p-4 space-y-1.5">
               <div className="flex items-center gap-2">
                 <span className="bg-red-100 text-red-800 text-[10px] font-mono font-bold px-2 py-0.5 rounded uppercase">
                   Critical
@@ -554,7 +580,7 @@ function SEOAuditResults() {
           ))}
 
           {!Array.isArray(audit.findings) && Array.isArray(audit.findings?.warnings) && audit.findings.warnings.map((title, i) => (
-            <div key={`warn-${i}`} className="border border-amber-100 rounded bg-amber-50/20 p-4 space-y-1.5">
+            <div key={`warn-${i}`} className="border border-amber-100 rounded bg-amber-50 p-4 space-y-1.5">
               <div className="flex items-center gap-2">
                 <span className="bg-amber-100 text-amber-800 text-[10px] font-mono font-bold px-2 py-0.5 rounded uppercase">
                   Warning
@@ -568,6 +594,7 @@ function SEOAuditResults() {
           ))}
         </div>
       </div>
+      </div>
 
     </div>
   );
@@ -578,30 +605,151 @@ function SEOAuditResults() {
 // ----------------------------------------------------
 function KeywordTracker() {
   const { activeClient, selectedClientId, agency, forceRefresh } = useApp();
-  const [keywords, setKeywords] = useState([]);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [keywordInput, setKeywordInput] = useState('');
   
-  // Expanded keyword rows for sparkline
-  const [expandedId, setExpandedId] = useState(null);
+  // Tabs: 'research' | 'tracked'
+  const [activeTab, setActiveTab] = useState('research');
+  
+  // Research State
+  const [seedKeyword, setSeedKeyword] = useState('');
+  const [researchResults, setResearchResults] = useState(null); // { type: 'raw'|'clusters', data: [] }
+  const [isDiscovering, setIsDiscovering] = useState(false);
+  const [isEnriching, setIsEnriching] = useState(false);
+  
+  // Tracked State
+  const [trackedKeywords, setTrackedKeywords] = useState([]);
+  const [expandedId, setExpandedId] = useState(null); // For sparkline
+  
+  // SERP Split-Screen State
+  const [selectedKeywordForSerp, setSelectedKeywordForSerp] = useState(null);
+  const [serpData, setSerpData] = useState(null);
+  const [isSerpLoading, setIsSerpLoading] = useState(false);
 
   useEffect(() => {
     if (selectedClientId) {
-      loadKeywords(selectedClientId);
+      loadTrackedKeywords(selectedClientId);
+      loadLatestResearch(selectedClientId);
     }
   }, [selectedClientId]);
 
-  const loadKeywords = async (clientId) => {
-    const { data } = await supabase.from('keyword_trackers').eq('client_id', clientId);
-    setKeywords(data || []);
+  const loadTrackedKeywords = async (clientId) => {
+    const { data } = await supabase.from('keyword_trackers').eq('client_id', clientId).order('created_at', { ascending: false });
+    setTrackedKeywords(data || []);
   };
 
-  const handleAddKeywords = async (e) => {
-    e.preventDefault();
-    if (!keywordInput.trim()) return;
+  const loadLatestResearch = async (clientId) => {
+    const { data } = await supabase.from('keyword_research_results').eq('client_id', clientId).order('created_at', { ascending: false }).limit(1);
+    if (data && data.length > 0) {
+      const dbRes = data[0];
+      setSeedKeyword(dbRes.seed_keyword || '');
+      if (dbRes.keywords_json && dbRes.keywords_json.clusters) {
+        setResearchResults({ type: 'clusters', data: dbRes.keywords_json.clusters });
+      } else if (dbRes.keywords_json && Array.isArray(dbRes.keywords_json)) {
+        setResearchResults({ type: 'raw', data: dbRes.keywords_json });
+      }
+    } else {
+      setResearchResults(null);
+      setSeedKeyword('');
+    }
+  };
 
-    const list = keywordInput.split('\n').map(k => k.trim()).filter(k => k.length > 0);
-    const newRows = list.map(keyword => ({
+  const handleDiscover = async () => {
+    if (!seedKeyword.trim()) return;
+    setIsDiscovering(true);
+    try {
+      const res = await fetch('/api/edge/keyword-suggest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ seed: seedKeyword.trim() })
+      });
+      const json = await res.json();
+      if (json.success) {
+        setResearchResults({ type: 'raw', data: json.data });
+        // Save to DB
+        await supabase.from('keyword_research_results').insert([{
+          agency_id: agency.id,
+          client_id: selectedClientId,
+          seed_keyword: seedKeyword.trim(),
+          keywords_json: json.data
+        }]);
+      } else {
+        alert('Failed to discover keywords: ' + json.error);
+      }
+    } catch (e) {
+      alert('Error fetching keywords.');
+    } finally {
+      setIsDiscovering(false);
+    }
+  };
+
+  const handleEnrich = async () => {
+    if (!researchResults || researchResults.type !== 'raw') return;
+    setIsEnriching(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('keyword-enrich', {
+        body: {
+          action: 'keyword-enrich',
+          input: { industry: activeClient?.industry || 'local business', keywords: researchResults.data.slice(0, 50).join(', ') },
+          agency_id: agency.id
+        }
+      });
+      if (error) throw error;
+      
+      let parsed = typeof data.output === 'string' ? JSON.parse(data.output) : data.output;
+      
+      // Unwrapping logic
+      if (parsed && typeof parsed.clusters === 'undefined') {
+        const keys = Object.keys(parsed);
+        if (keys.length === 1 && typeof parsed[keys[0]] === 'object') {
+          parsed = parsed[keys[0]];
+        }
+      }
+
+      if (parsed.clusters) {
+        setResearchResults({ type: 'clusters', data: parsed.clusters });
+        // Update DB
+        await supabase.from('keyword_research_results').insert([{
+          agency_id: agency.id,
+          client_id: selectedClientId,
+          seed_keyword: seedKeyword,
+          keywords_json: parsed
+        }]);
+      }
+    } catch (e) {
+      alert('Failed to analyze keywords with AI.');
+    } finally {
+      setIsEnriching(false);
+    }
+  };
+
+  const openSerp = async (keyword) => {
+    setSelectedKeywordForSerp(keyword);
+    setSerpData(null);
+    setIsSerpLoading(true);
+    try {
+      const { getSERP } = await import('../../lib/supabase');
+      const location = 'India'; // Default or from client
+      const res = await getSERP(keyword, location, agency.id);
+      if (res.success) {
+        setSerpData({ ...res.text, cached: res.cached, fetched_at: res.fetched_at });
+      } else {
+        alert('SERP check failed: ' + res.text);
+        setSelectedKeywordForSerp(null);
+      }
+    } catch (e) {
+      alert('Error fetching SERP.');
+      setSelectedKeywordForSerp(null);
+    } finally {
+      setIsSerpLoading(false);
+    }
+  };
+
+  const closeSerp = () => {
+    setSelectedKeywordForSerp(null);
+    setSerpData(null);
+  };
+
+  const addToTracker = async (keyword) => {
+    const newRow = {
       client_id: selectedClientId,
       keyword,
       current_rank: Math.floor(Math.random() * 80) + 10,
@@ -610,110 +758,142 @@ function KeywordTracker() {
       difficulty: Math.floor(Math.random() * 80) + 15,
       cpc: Number((Math.random() * 5).toFixed(2)),
       last_checked: new Date().toISOString()
-    }));
-
-    await supabase.from('keyword_trackers').insert(newRows);
-    loadKeywords(selectedClientId);
-    setKeywordInput('');
-    setShowAddModal(false);
-    window.dispatchEvent(new Event('local_db_change'));
+    };
+    await supabase.from('keyword_trackers').insert([newRow]);
+    loadTrackedKeywords(selectedClientId);
+    alert(`Added "${keyword}" to tracker!`);
   };
 
-  const runAiSuggestions = async () => {
-    // Call AI Suggestions
-    try {
-      const { data } = await supabase.functions.invoke('ai-generate', {
-        body: {
-          action: 'keyword-research',
-          input: { topic: activeClient?.industry || 'marketing', clientName: activeClient?.name },
-          agency_id: agency.id
-        }
-      });
-      
-      const list = JSON.parse(data.output);
-      const newRows = list.map(item => ({
-        client_id: selectedClientId,
-        keyword: item.keyword,
-        current_rank: Math.floor(Math.random() * 40) + 5,
-        previous_rank: Math.floor(Math.random() * 40) + 8,
-        search_volume: item.volume,
-        difficulty: item.difficulty,
-        cpc: item.cpc,
-        last_checked: new Date().toISOString()
-      }));
+  const renderResearchTable = () => {
+    if (!researchResults) {
+      return (
+        <div className="py-12 text-center text-text-secondary border border-border-light rounded bg-panel-white">
+          Enter a seed keyword above and click Discover to find keywords.
+        </div>
+      );
+    }
 
-      await supabase.from('keyword_trackers').insert(newRows);
-      loadKeywords(selectedClientId);
-      window.dispatchEvent(new Event('local_db_change'));
-      forceRefresh();
-      alert('AI Keyword suggestions loaded & inserted.');
-    } catch (e) {
-      alert('Failed running AI recommendations.');
+    if (researchResults.type === 'raw') {
+      return (
+        <div className="bg-panel-white border border-border-light rounded shadow-sm overflow-hidden">
+          <div className="p-4 border-b border-border-light flex justify-between items-center bg-page-bg/40">
+            <span className="text-sm font-semibold">Found {researchResults.data.length} raw keywords</span>
+            <button 
+              onClick={handleEnrich} 
+              disabled={isEnriching}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-primary-cyan hover:bg-primary-cyan-hover text-white rounded text-xs font-semibold disabled:opacity-50"
+            >
+              <Sparkles size={13} />
+              {isEnriching ? 'Analyzing...' : 'Analyze with AI'}
+            </button>
+          </div>
+          <div className="max-h-96 overflow-y-auto">
+            <table className="w-full text-left border-collapse">
+              <tbody className="divide-y divide-page-bg text-xs">
+                {researchResults.data.map((kw, idx) => (
+                  <tr key={idx} className="hover:bg-[#F0FDFA]">
+                    <td className="py-3 px-4 text-text-primary">{kw}</td>
+                    <td className="py-3 px-4 text-right">
+                      <button onClick={() => openSerp(kw)} className="text-primary-cyan hover:underline mr-4 text-[11px] font-semibold">Check SERP</button>
+                      <button onClick={() => addToTracker(kw)} className="text-text-secondary hover:text-text-primary text-[11px] font-semibold">Track</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    }
+
+    if (researchResults.type === 'clusters') {
+      return (
+        <div className="space-y-4">
+          {researchResults.data.map((cluster, cidx) => (
+            <div key={cidx} className="bg-panel-white border border-border-light rounded shadow-sm overflow-hidden">
+              <div className="px-4 py-2.5 bg-page-bg/60 border-b border-border-light font-bold text-sm text-text-primary flex items-center gap-2">
+                <ChevronDown size={16} className="text-text-secondary" />
+                {cluster.cluster_name}
+              </div>
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-page-bg/20 border-b border-border-light text-[10px] font-mono text-text-secondary uppercase">
+                    <th className="py-2.5 px-4 font-semibold">Search query</th>
+                    <th className="py-2.5 px-4 font-semibold">Intent</th>
+                    <th className="py-2.5 px-4 font-semibold">Competition</th>
+                    <th className="py-2.5 px-4 font-semibold text-center">Priority</th>
+                    <th className="py-2.5 px-4 font-semibold text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-page-bg text-xs">
+                  {cluster.keywords.map((kw, kidx) => {
+                    const compColor = kw.competition?.toLowerCase() === 'high' ? 'bg-error-red text-white' : kw.competition?.toLowerCase() === 'medium' ? 'bg-warning-amber text-black' : 'bg-success-green text-white';
+                    const intentColor = kw.intent?.toLowerCase().includes('transactional') || kw.intent?.toLowerCase().includes('commercial') ? 'text-primary-cyan border-primary-cyan bg-cyan-50' : 'text-text-secondary border-border-light bg-page-bg';
+                    return (
+                      <tr key={kidx} className={`hover:bg-[#F0FDFA] transition-colors ${selectedKeywordForSerp === kw.keyword ? 'bg-[#F0FDFA] border-l-2 border-l-primary-cyan' : ''}`}>
+                        <td className="py-3 px-4 font-semibold text-text-primary cursor-pointer" onClick={() => openSerp(kw.keyword)}>{kw.keyword}</td>
+                        <td className="py-3 px-4">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-mono border ${intentColor} uppercase`}>{kw.intent}</span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${compColor}`}>{kw.competition}</span>
+                        </td>
+                        <td className="py-3 px-4 text-center font-mono font-bold text-text-primary">{kw.priority}/10</td>
+                        <td className="py-3 px-4 text-right">
+                          <button onClick={() => openSerp(kw.keyword)} className="text-primary-cyan hover:underline mr-3 text-[11px] font-semibold">SERP</button>
+                          <button onClick={() => addToTracker(kw.keyword)} className="text-text-secondary hover:text-text-primary text-[11px] font-semibold">Track</button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ))}
+        </div>
+      );
     }
   };
 
-  return (
-    <div className="space-y-6 font-sans animate-fade-in select-none">
-      
-      {/* Title / Action bar */}
-      <div className="flex items-center justify-between border-b border-border-light pb-4">
-        <div>
-          <h2 className="text-sm font-mono uppercase font-bold text-text-primary">Keyword Rank Tracker</h2>
-          <p className="text-xs text-text-secondary">Monitor localized queries rankings on Google SERPs.</p>
-        </div>
-
-        <div className="flex gap-2">
-          <button 
-            onClick={runAiSuggestions}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-panel-white border border-[#06B6D433] hover:border-primary-cyan text-primary-cyan rounded text-xs font-semibold hover:bg-cyan-50/20 transition-all duration-150 cursor-pointer"
-          >
-            <Sparkles size={13} />
-            <span>AI Suggestions</span>
-          </button>
-          
-          <button 
-            onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-1 px-3 py-1.5 bg-primary-cyan hover:bg-primary-cyan-hover text-white rounded text-xs font-semibold transition-colors cursor-pointer"
-          >
-            <Plus size={13} />
-            <span>Add Keywords</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Table */}
+  const renderTrackedTable = () => {
+    const isSplit = !!selectedKeywordForSerp;
+    return (
       <div className="bg-panel-white border border-border-light rounded shadow-sm overflow-hidden">
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-page-bg/40 border-b border-border-light text-[10px] font-mono text-text-secondary uppercase">
               <th className="py-2.5 px-4 font-semibold">Search query</th>
               <th className="py-2.5 px-4 font-semibold text-center">Ranks</th>
-              <th className="py-2.5 px-4 font-semibold">Search Volume</th>
-              <th className="py-2.5 px-4 font-semibold">Difficulty</th>
-              <th className="py-2.5 px-4 font-semibold">Avg CPC</th>
               <th className="py-2.5 px-4 font-semibold">Last Checked</th>
+              {!isSplit && (
+                <>
+                  <th className="py-2.5 px-4 font-semibold">Search Volume</th>
+                  <th className="py-2.5 px-4 font-semibold">Difficulty</th>
+                  <th className="py-2.5 px-4 font-semibold text-right">Actions</th>
+                </>
+              )}
             </tr>
           </thead>
           <tbody className="divide-y divide-page-bg text-xs">
-            {keywords.length === 0 ? (
+            {trackedKeywords.length === 0 ? (
               <tr>
-                <td colSpan="6" className="py-12 text-center text-text-secondary">
-                  No keywords tracked yet. Click "Add Keywords" or generate with AI.
+                <td colSpan={isSplit ? 3 : 6} className="py-12 text-center text-text-secondary">
+                  No keywords tracked yet. Add from Research.
                 </td>
               </tr>
             ) : (
-              keywords.map(kw => {
+              trackedKeywords.map(kw => {
                 const rankChange = kw.previous_rank - kw.current_rank;
-                const isExpanded = expandedId === kw.id;
+                const isExpanded = expandedId === kw.id && !isSplit;
+                const isSelected = selectedKeywordForSerp === kw.keyword;
                 return (
                   <React.Fragment key={kw.id}>
                     <tr 
-                      onClick={() => setExpandedId(isExpanded ? null : kw.id)}
-                      className="hover:bg-[#F0FDFA] transition-colors cursor-pointer"
+                      className={`hover:bg-[#F0FDFA] transition-colors ${isSelected ? 'bg-[#F0FDFA] border-l-2 border-l-primary-cyan' : ''}`}
                     >
-                      <td className="py-3 px-4 font-semibold text-text-primary">
+                      <td className="py-3 px-4 font-semibold text-text-primary cursor-pointer" onClick={() => !isSplit ? setExpandedId(isExpanded ? null : kw.id) : openSerp(kw.keyword)}>
                         <div className="flex items-center gap-1">
-                          {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                          {!isSplit && (isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />)}
                           <span>{kw.keyword}</span>
                         </div>
                       </td>
@@ -722,66 +902,50 @@ function KeywordTracker() {
                         <div className="flex items-center justify-center gap-1.5">
                           <span className="font-bold text-text-primary text-sm">{kw.current_rank}</span>
                           {rankChange > 0 ? (
-                            <span className="text-success-green flex items-center font-mono text-[10px] font-bold">
-                              ▲{rankChange}
-                            </span>
+                            <span className="text-success-green flex items-center font-mono text-[10px] font-bold">▲{rankChange}</span>
                           ) : rankChange < 0 ? (
-                            <span className="text-error-red flex items-center font-mono text-[10px] font-bold">
-                              ▼{Math.abs(rankChange)}
-                            </span>
+                            <span className="text-error-red flex items-center font-mono text-[10px] font-bold">▼{Math.abs(rankChange)}</span>
                           ) : (
                             <span className="text-text-muted font-mono text-[10px] font-bold">-</span>
                           )}
                         </div>
                       </td>
 
-                      <td className="py-3 px-4 font-mono text-text-secondary">
-                        {kw.search_volume.toLocaleString()} / mo
-                      </td>
-
-                      <td className="py-3 px-4 w-40">
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 bg-page-bg h-2 rounded overflow-hidden">
-                            <div 
-                              className={`h-full rounded ${
-                                kw.difficulty >= 60 ? 'bg-error-red' : kw.difficulty >= 35 ? 'bg-warning-amber' : 'bg-success-green'
-                              }`}
-                              style={{ width: `${kw.difficulty}%` }}
-                            />
-                          </div>
-                          <span className="font-mono text-[10px] font-bold text-text-secondary w-6 text-right">
-                            {kw.difficulty}
-                          </span>
-                        </div>
-                      </td>
-
-                      <td className="py-3 px-4 font-mono text-text-secondary">
-                        ${kw.cpc.toFixed(2)}
-                      </td>
-
                       <td className="py-3 px-4 font-mono text-text-muted">
-                        {new Date(kw.last_checked).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {new Date(kw.last_checked).toLocaleDateString()}
                       </td>
+
+                      {!isSplit && (
+                        <>
+                          <td className="py-3 px-4 font-mono text-text-secondary">{kw.search_volume.toLocaleString()} / mo</td>
+                          <td className="py-3 px-4 w-32">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 bg-page-bg h-2 rounded overflow-hidden">
+                                <div 
+                                  className={`h-full rounded ${kw.difficulty >= 60 ? 'bg-error-red' : kw.difficulty >= 35 ? 'bg-warning-amber' : 'bg-success-green'}`}
+                                  style={{ width: `${kw.difficulty}%` }}
+                                />
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            <button onClick={(e) => { e.stopPropagation(); openSerp(kw.keyword); }} className="text-primary-cyan hover:underline mr-2 text-[11px] font-semibold">SERP</button>
+                          </td>
+                        </>
+                      )}
                     </tr>
 
                     {/* Sparkline historical detail drawer */}
-                    {isExpanded && (
+                    {isExpanded && !isSplit && (
                       <tr className="bg-[#ECFEFF]/20">
                         <td colSpan="6" className="py-4 px-12 border-b border-border-light">
                           <div className="flex items-center justify-between">
                             <div className="flex flex-col gap-0.5 text-xs">
                               <span className="font-bold text-text-primary"> Ranks history (Last 30 Days)</span>
-                              <span className="text-text-secondary">Keyword shows positive signals on local business search intents.</span>
+                              <span className="text-text-secondary">Historical trend for "{kw.keyword}"</span>
                             </div>
-                            
-                            {/* SVG historical sparkline */}
                             <svg className="w-56 h-12 text-primary-cyan" viewBox="0 0 100 30" fill="none">
-                              <path 
-                                d={`M0,${Math.max(5, kw.previous_rank % 25)} L25,18 L50,22 L75,${Math.max(5, (kw.current_rank + 3) % 25)} L100,${Math.max(2, kw.current_rank % 25)}`} 
-                                stroke="currentColor" 
-                                strokeWidth="2.5" 
-                                strokeLinecap="round" 
-                              />
+                              <path d={`M0,${Math.max(5, kw.previous_rank % 25)} L25,18 L50,22 L75,${Math.max(5, (kw.current_rank + 3) % 25)} L100,${Math.max(2, kw.current_rank % 25)}`} stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
                             </svg>
                           </div>
                         </td>
@@ -794,46 +958,160 @@ function KeywordTracker() {
           </tbody>
         </table>
       </div>
+    );
+  };
 
-      {/* Keywords Add Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-[#111827]/40 backdrop-blur-sm z-[999] flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-panel-white border border-border-light rounded-lg shadow-2xl p-6">
-            <h3 className="text-sm font-semibold text-text-primary border-b border-page-bg pb-3 mb-4 uppercase">
-              Add Keywords to Track
+  const renderSerpPane = () => {
+    if (!selectedKeywordForSerp) return null;
+
+    return (
+      <div className="w-full h-full bg-panel-white border border-border-light rounded shadow-lg overflow-hidden flex flex-col animate-slide-left">
+        {/* SERP Header */}
+        <div className="px-5 py-4 border-b border-border-light bg-page-bg/30 flex items-center justify-between">
+          <div>
+            <h3 className="font-bold text-text-primary text-sm flex items-center gap-2">
+              <Search size={14} className="text-text-secondary" />
+              "{selectedKeywordForSerp}"
             </h3>
-            <form onSubmit={handleAddKeywords} className="space-y-4">
-              <div className="space-y-1">
-                <label className="block font-mono text-[10px] font-bold text-text-secondary uppercase">
-                  Search keywords (one per line)
-                </label>
-                <textarea 
-                  value={keywordInput}
-                  onChange={(e) => setKeywordInput(e.target.value)}
-                  placeholder="best dentist bangalore&#10;dental implant price indiranagar&#10;painless root canal clinic near me"
-                  className="w-full border border-border-light rounded p-3 text-xs h-36 focus:outline-none focus:border-primary-cyan font-sans"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-2 border-t border-border-light pt-3">
-                <button 
-                  type="button" 
-                  onClick={() => setShowAddModal(false)}
-                  className="px-3 py-1.5 border border-border-light rounded text-xs text-text-secondary hover:bg-page-bg cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button 
-                  type="submit"
-                  className="px-3.5 py-1.5 bg-primary-cyan hover:bg-primary-cyan-hover text-white rounded text-xs font-semibold cursor-pointer transition-colors"
-                >
-                  Track Keywords
-                </button>
-              </div>
-            </form>
+            {serpData && serpData.cached && (
+              <p className="text-[10px] text-text-muted mt-1">Cached • updated {Math.floor((new Date() - new Date(serpData.fetched_at)) / (1000 * 60 * 60 * 24))} days ago</p>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => openSerp(selectedKeywordForSerp)} 
+              title="Force Refresh (Uses Sonar credits)"
+              className="p-1.5 text-text-secondary hover:bg-page-bg rounded transition-colors cursor-pointer"
+            >
+              <RefreshCw size={14} className={isSerpLoading ? 'animate-spin text-primary-cyan' : ''} />
+            </button>
+            <button onClick={closeSerp} className="p-1.5 text-text-secondary hover:bg-page-bg rounded transition-colors cursor-pointer">
+              <X size={16} />
+            </button>
           </div>
         </div>
+
+        {/* SERP Content */}
+        <div className="flex-1 overflow-y-auto p-5 bg-[#F9FAFB]">
+          {isSerpLoading ? (
+            <div className="flex flex-col items-center justify-center h-48 space-y-3">
+              <RefreshCw size={24} className="animate-spin text-primary-cyan" />
+              <p className="text-xs text-text-secondary font-mono">Running live Sonar SERP check...</p>
+            </div>
+          ) : serpData ? (
+            <div className="space-y-6">
+              {/* Rankings */}
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold font-mono text-text-secondary uppercase mb-3">Top 10 Rankings</h4>
+                {serpData.results && serpData.results.map((res, i) => {
+                  const url = res.url || (res.domain ? `https://${res.domain}` : `https://www.google.com/search?q=${res.domain}`);
+                  return (
+                    <div key={i} className="group bg-white border border-border-light hover:border-primary-cyan rounded p-3 shadow-sm transition-all flex gap-3">
+                      <div className={`w-6 h-6 shrink-0 rounded-full flex items-center justify-center text-[10px] font-bold ${res.position <= 3 ? 'bg-primary-cyan text-white shadow-md' : 'bg-page-bg text-text-secondary'}`}>
+                        {res.position}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <a href={url} target="_blank" rel="noopener noreferrer" className="text-sm font-bold text-blue-600 hover:underline flex items-center gap-1.5 truncate">
+                          {res.page_title || res.domain}
+                          <ExternalLink size={12} className="text-text-muted opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </a>
+                        <a href={url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-emerald-700 font-mono truncate block mt-0.5 hover:underline">
+                          {res.domain || url}
+                        </a>
+                        <p className="text-xs text-text-secondary mt-1.5 line-clamp-2 leading-relaxed">
+                          {res.summary}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Content Gaps */}
+              {serpData.content_gaps && serpData.content_gaps.length > 0 && (
+                <div className="mt-8">
+                  <h4 className="text-xs font-bold font-mono text-text-secondary uppercase mb-3 flex items-center gap-1.5">
+                    <Lightbulb size={14} className="text-warning-amber" />
+                    Content Gap Opportunities
+                  </h4>
+                  <div className="space-y-2">
+                    {serpData.content_gaps.map((gap, i) => (
+                      <div key={i} className="bg-amber-50 border border-amber-100 text-amber-900 text-xs p-3 rounded leading-relaxed">
+                        {gap}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-center py-10 text-sm text-text-secondary">Failed to load SERP data.</div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-4 font-sans animate-fade-in select-none">
+      
+      {/* Title / Action bar */}
+      <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between border-b border-border-light pb-4">
+        <div>
+          <h2 className="text-sm font-mono uppercase font-bold text-text-primary">Keyword Engine</h2>
+          <p className="text-xs text-text-secondary">Discover, analyze, and track keywords with live SERP insights.</p>
+        </div>
+
+        <div className="flex items-center gap-2 bg-panel-white p-1 rounded-lg border border-border-light">
+          <button 
+            onClick={() => setActiveTab('research')}
+            className={`px-4 py-1.5 rounded text-xs font-semibold transition-all ${activeTab === 'research' ? 'bg-primary-cyan text-white shadow' : 'text-text-secondary hover:text-text-primary hover:bg-page-bg'} cursor-pointer`}
+          >
+            Research
+          </button>
+          <button 
+            onClick={() => setActiveTab('tracked')}
+            className={`px-4 py-1.5 rounded text-xs font-semibold transition-all ${activeTab === 'tracked' ? 'bg-primary-cyan text-white shadow' : 'text-text-secondary hover:text-text-primary hover:bg-page-bg'} cursor-pointer`}
+          >
+            Tracked ({trackedKeywords.length})
+          </button>
+        </div>
+      </div>
+
+      {activeTab === 'research' && (
+        <div className="bg-panel-white border border-border-light rounded-lg p-4 flex gap-3 shadow-sm mb-4">
+          <input 
+            type="text" 
+            placeholder="Enter seed keyword (e.g. 'plumber austin')"
+            value={seedKeyword}
+            onChange={e => setSeedKeyword(e.target.value)}
+            className="flex-1 border border-border-light rounded px-3 text-sm focus:outline-none focus:border-primary-cyan"
+            onKeyDown={e => e.key === 'Enter' && handleDiscover()}
+          />
+          <button 
+            onClick={handleDiscover}
+            disabled={isDiscovering || !seedKeyword.trim()}
+            className="px-5 py-2 bg-primary-cyan hover:bg-primary-cyan-hover text-white rounded text-sm font-semibold disabled:opacity-50 transition-colors shadow-sm cursor-pointer"
+          >
+            {isDiscovering ? 'Discovering...' : 'Discover Keywords'}
+          </button>
+        </div>
       )}
+
+      {/* Split Screen Layout Container */}
+      <div className="flex flex-col lg:flex-row gap-4 h-[750px]">
+        {/* Left Pane (Table) */}
+        <div className={`transition-all duration-300 ease-in-out h-full overflow-y-auto ${selectedKeywordForSerp ? 'lg:w-[55%]' : 'w-full'}`}>
+          {activeTab === 'research' ? renderResearchTable() : renderTrackedTable()}
+        </div>
+
+        {/* Right Pane (SERP) */}
+        {selectedKeywordForSerp && (
+          <div className="transition-all duration-300 ease-in-out lg:w-[45%] h-full">
+            {renderSerpPane()}
+          </div>
+        )}
+      </div>
 
     </div>
   );

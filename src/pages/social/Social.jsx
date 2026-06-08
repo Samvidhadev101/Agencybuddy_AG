@@ -9,6 +9,7 @@ import {
   Search, Grid, Plus, Trash2, ArrowUpRight, CheckCircle2, ShieldAlert
 } from 'lucide-react';
 import AiOutputBadge from '../../components/AiOutputBadge';
+import ComingSoon from '../../components/ComingSoon';
 
 export default function Social() {
   const location = useLocation();
@@ -20,11 +21,13 @@ export default function Social() {
   } else if (currentPath === '/social/compose') {
     content = <PostComposer />;
   } else if (currentPath === '/social/inbox') {
-    content = <UnifiedInbox />;
+    content = <ComingSoon title="Inbox Chat" />;
   } else if (currentPath === '/social/listening') {
-    content = <SocialListening />;
+    content = <ComingSoon title="Listening" />;
   } else if (currentPath === '/social/influencers') {
-    content = <InfluencerDirectory />;
+    content = <ComingSoon title="Influencers" />;
+  } else if (currentPath === '/social/ads') {
+    content = <ComingSoon title="Ads Manager" />;
   } else {
     content = <SocialDashboard />;
   }
