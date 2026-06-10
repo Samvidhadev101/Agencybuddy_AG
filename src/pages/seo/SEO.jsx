@@ -1018,7 +1018,7 @@ function KeywordTracker() {
                         <a href={url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-emerald-700 font-mono truncate block mt-0.5 hover:underline">
                           {res.domain || url}
                         </a>
-                        <p className="text-xs text-text-secondary mt-1.5 line-clamp-2 leading-relaxed">
+                        <p className="text-xs text-slate-600 mt-1.5 line-clamp-2 leading-relaxed">
                           {res.summary}
                         </p>
                       </div>
