@@ -1,17 +1,142 @@
-import { createClient } from '@supabase/supabase-js';
+// Mock Supabase Client using LocalStorage Database Fallback
+let authListener = null;
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+class SupabaseQueryBuilder {
+  constructor(tableName) {
+    this.tableName = tableName;
+    this.data = JSON.parse(localStorage.getItem(`db_${tableName}`) || '[]');
+    this.filters = [];
+    this.orderCol = null;
+    this.orderAsc = true;
+    this.limitCount = null;
+  }
 
-export const supabase = supabaseUrl && supabaseAnonKey 
-  ? createClient(supabaseUrl, supabaseAnonKey) 
-  : null;
+  select(columns) {
+    // Chainable select
+    return this;
+  }
 
-// Ensure we have a working client
-if (!supabase) {
-  console.error("Missing Supabase credentials in .env.local!");
+  eq(column, value) {
+    this.filters.push(item => item[column] === value);
+    return this;
+  }
+
+  neq(column, value) {
+    this.filters.push(item => item[column] !== value);
+    return this;
+  }
+
+  in(column, array) {
+    this.filters.push(item => array.includes(item[column]));
+    return this;
+  }
+
+  order(column, { ascending = true } = {}) {
+    this.orderCol = column;
+    this.orderAsc = ascending;
+    return this;
+  }
+
+  limit(count) {
+    this.limitCount = count;
+    return this;
+  }
+
+  execute() {
+    let result = [...this.data];
+    // Apply filters
+    for (const filter of this.filters) {
+      result = result.filter(filter);
+    }
+    // Apply order
+    if (this.orderCol) {
+      result.sort((a, b) => {
+        let valA = a[this.orderCol];
+        let valB = b[this.orderCol];
+        if (valA === undefined || valA === null) return 1;
+        if (valB === undefined || valB === null) return -1;
+        if (typeof valA === 'string') {
+          return this.orderAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+        }
+        return this.orderAsc ? valA - valB : valB - valA;
+      });
+    }
+    // Apply limit
+    if (this.limitCount !== null) {
+      result = result.slice(0, this.limitCount);
+    }
+    return result;
+  }
+
+  async insert(insertData) {
+    const dataArray = Array.isArray(insertData) ? insertData : [insertData];
+    const newItems = dataArray.map(item => ({
+      id: item.id || (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15)),
+      created_at: new Date().toISOString(),
+      ...item
+    }));
+    
+    this.data.push(...newItems);
+    localStorage.setItem(`db_${this.tableName}`, JSON.stringify(this.data));
+    
+    // Also dispatch database change event
+    window.dispatchEvent(new Event('local_db_change'));
+
+    return { data: Array.isArray(insertData) ? newItems : newItems[0], error: null };
+  }
+
+  async update(updateData) {
+    let result = [...this.data];
+    for (const filter of this.filters) {
+      result = result.filter(filter);
+    }
+    const idsToUpdate = result.map(r => r.id);
+    
+    this.data = this.data.map(item => {
+      if (idsToUpdate.includes(item.id)) {
+        return { ...item, ...updateData };
+      }
+      return item;
+    });
+    localStorage.setItem(`db_${this.tableName}`, JSON.stringify(this.data));
+    const updated = this.data.filter(item => idsToUpdate.includes(item.id));
+    
+    window.dispatchEvent(new Event('local_db_change'));
+
+    return { data: updated, error: null };
+  }
+
+  async delete() {
+    let result = [...this.data];
+    for (const filter of this.filters) {
+      result = result.filter(filter);
+    }
+    const idsToDelete = result.map(r => r.id);
+    this.data = this.data.filter(item => !idsToDelete.includes(item.id));
+    localStorage.setItem(`db_${this.tableName}`, JSON.stringify(this.data));
+    
+    window.dispatchEvent(new Event('local_db_change'));
+
+    return { data: result, error: null };
+  }
+
+  then(onfulfilled, onrejected) {
+    const result = this.execute();
+    return Promise.resolve({ data: result, error: null }).then(onfulfilled, onrejected);
+  }
+
+  async single() {
+    const result = this.execute();
+    return { data: result[0] || null, error: result[0] ? null : { message: 'No row found' } };
+  }
+
+  async maybeSingle() {
+    const result = this.execute();
+    return { data: result[0] || null, error: null };
+  }
 }
 
+// Function costs dictionary
 const TOKEN_COSTS = {
   'seo-audit': 2,
   'keyword-research': 1,
@@ -142,7 +267,8 @@ function getMockOutput(action, input) {
 }
 
 async function callAI(prompt, systemPrompt, agencyId, jsonMode = false, isSerp = false) {
-  const { data: agency } = await supabase.from('agencies').select('*').eq('id', agencyId).single();
+  const agencies = JSON.parse(localStorage.getItem('db_agencies') || '[]');
+  const agency = agencies.find(a => a.id === agencyId);
 
   if (!agency || !agency.openrouter_api_key) {
     return {
@@ -362,85 +488,468 @@ async function generateAIContent(action, input, agencyId) {
   return { data: { output: contentText, is_live_api: true, model_name: modelName }, error: null };
 }
 
-
-
-
-
 async function simulateAiGenerate(body) {
   const { action, input, agency_id } = body;
-  const { data: matchedAgency } = await supabase.from('agencies').select('*').eq('id', agency_id).single();
+
+  // Pre-flight check for API Key
+  const agencies = JSON.parse(localStorage.getItem('db_agencies') || '[]');
+  const matchedAgency = agencies.find(a => a.id === agency_id);
+  
   if (!matchedAgency || !matchedAgency.openrouter_api_key) {
-    return { error: 'AI features are disabled. Add your OpenRouter API key in Settings.' };
+    return { error: 'AI features are disabled. Add your OpenRouter API key in Settings to get started.' };
   }
 
-  // Very simplified AI call for the hybrid
-  const res = await callAI(JSON.stringify(input), "You are an AI assistant for a marketing agency.", agency_id);
-  if (!res.error) window.dispatchEvent(new Event('local_db_change'));
+  // Generate content using OpenRouter backend
+  const response = await generateAIContent(action, input, agency_id);
   
-  if (action === 'seo-audit' || action === 'keyword-research') {
-     // Return mock JSON so it doesn't break
-     return { data: { output: getMockOutput(action, input), is_live_api: false }, error: null };
+  if (!response.error) {
+    window.dispatchEvent(new Event('local_db_change'));
   }
-  
-  return { data: { output: res.text, is_live_api: true }, error: null };
+
+  return response;
 }
 
-// Intercept functions.invoke
-if (supabase) {
-  const originalInvoke = supabase.functions.invoke.bind(supabase.functions);
-  supabase.functions.invoke = async (functionName, options) => {
-    const body = options?.body;
-    if (body && body.action) {
-      return await simulateAiGenerate(body);
+// ------------------------------------------------------------------
+// AEO ENGINE SPECIFIC FUNCTIONS
+// ------------------------------------------------------------------
+
+async function runAeoCheckMultiModel(body, matchedAgency) {
+  const { action, input, agency_id } = body;
+
+  const { query, brand_name, competitors, client_id } = input;
+  const compArray = (competitors || '').split(',').map(s => s.trim()).filter(Boolean);
+
+  const models = [
+    { id: 'openai/gpt-4o-mini', platform: 'chatgpt' },
+    { id: 'google/gemini-2.0-flash-exp', platform: 'gemini' },
+    { id: 'perplexity/sonar', platform: 'perplexity' },
+    { id: 'anthropic/claude-3.5-haiku', platform: 'claude' }
+  ];
+
+  const systemPrompt = "You are a helpful assistant. Answer the user's question naturally and concisely, recommending specific brands or companies where relevant.";
+  const checksToInsert = [];
+
+  // Run in parallel
+  const promises = models.map(async (m) => {
+    try {
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${matchedAgency.openrouter_api_key}`,
+          'HTTP-Referer': 'https://agencyos.in',
+          'X-Title': 'Agency OS'
+        },
+        body: JSON.stringify({
+          model: m.id,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: query }
+          ],
+          temperature: 0.7,
+          max_tokens: 1000
+        })
+      });
+
+      const data = await response.json();
+      let fullResponse = '';
+      if (data.choices && data.choices[0] && data.choices[0].message) {
+        fullResponse = data.choices[0].message.content;
+      } else {
+        fullResponse = "Model unavailable or error returned.";
+      }
+
+      // Analyze response via fast string matching
+      const rLower = fullResponse.toLowerCase();
+      const bLower = brand_name.toLowerCase();
+      const brandMentioned = rLower.includes(bLower);
+
+      let position = null;
+      let context = null;
+      let sentiment = 'neutral';
+      
+      if (brandMentioned) {
+        const brandIdx = rLower.indexOf(bLower);
+        if (brandIdx < rLower.length / 3) position = 'first';
+        else if (brandIdx < (rLower.length / 3) * 2) position = 'middle';
+        else position = 'last';
+
+        // Extract context sentence
+        const sentences = fullResponse.match(/[^.!?]+[.!?]+/g) || [fullResponse];
+        const ctxSentence = sentences.find(s => s.toLowerCase().includes(bLower)) || '';
+        context = ctxSentence.trim();
+
+        // Basic sentiment heuristics in the context
+        const posWords = ['best', 'great', 'excellent', 'recommend', 'top', 'highly', 'reliable', 'good'];
+        const negWords = ['bad', 'worst', 'avoid', 'terrible', 'poor', 'dont'];
+        let posScore = 0; let negScore = 0;
+        posWords.forEach(w => { if(context.toLowerCase().includes(w)) posScore++; });
+        negWords.forEach(w => { if(context.toLowerCase().includes(w)) negScore++; });
+        
+        if (posScore > negScore) sentiment = 'positive';
+        else if (negScore > posScore) sentiment = 'negative';
+      }
+
+      const compMentions = [];
+      compArray.forEach(c => {
+        if (rLower.includes(c.toLowerCase())) compMentions.push(c);
+      });
+
+      checksToInsert.push({
+        id: 'chk_' + Math.random().toString(36).substring(2, 9),
+        client_id,
+        agency_id,
+        query_tested: query,
+        platform: m.platform,
+        brand_mentioned: brandMentioned,
+        mention_position: position,
+        mention_context: context,
+        competitor_mentions: compMentions,
+        sentiment,
+        full_response: fullResponse,
+        created_at: new Date().toISOString()
+      });
+
+    } catch (e) {
+      console.error("Model fetch error", e);
+      checksToInsert.push({
+        id: 'chk_' + Math.random().toString(36).substring(2, 9),
+        client_id,
+        agency_id,
+        query_tested: query,
+        platform: m.platform,
+        brand_mentioned: false,
+        mention_position: null,
+        mention_context: null,
+        competitor_mentions: [],
+        sentiment: 'neutral',
+        full_response: 'Platform unavailable during test.',
+        created_at: new Date().toISOString()
+      });
     }
-    return originalInvoke(functionName, options);
+  });
+
+  await Promise.all(promises);
+
+  // Save to db
+  const existingChecks = JSON.parse(localStorage.getItem('db_aeo_checks') || '[]');
+  existingChecks.push(...checksToInsert);
+  localStorage.setItem('db_aeo_checks', JSON.stringify(existingChecks));
+  
+  window.dispatchEvent(new Event('local_db_change'));
+
+  return { data: { success: true, checks: checksToInsert }, error: null };
+}
+
+async function calculateAeoScore(body) {
+  const { input, agency_id } = body;
+  const { client_id } = input;
+
+  const allChecks = JSON.parse(localStorage.getItem('db_aeo_checks') || '[]');
+  const clientChecks = allChecks.filter(c => c.client_id === client_id);
+
+  if (clientChecks.length === 0) {
+    return { data: { message: "No checks found" }, error: null };
+  }
+
+  // Get most recent checks per query per platform
+  const latestChecksMap = {};
+  clientChecks.forEach(c => {
+    const key = `${c.query_tested}_${c.platform}`;
+    if (!latestChecksMap[key] || new Date(c.created_at) > new Date(latestChecksMap[key].created_at)) {
+      latestChecksMap[key] = c;
+    }
+  });
+  const latestChecks = Object.values(latestChecksMap);
+
+  const platforms = ['chatgpt', 'gemini', 'perplexity', 'claude'];
+  const pScores = {};
+  
+  platforms.forEach(p => {
+    const pChecks = latestChecks.filter(c => c.platform === p);
+    if (pChecks.length === 0) {
+      pScores[p] = 0;
+      return;
+    }
+    
+    let totalScore = 0;
+    pChecks.forEach(c => {
+      if (c.brand_mentioned) {
+        if (c.mention_position === 'first') totalScore += 100;
+        else if (c.mention_position === 'middle') totalScore += 70;
+        else totalScore += 40;
+      }
+    });
+    pScores[p] = Math.round(totalScore / pChecks.length);
+  });
+
+  const overall = Math.round((pScores.chatgpt + pScores.gemini + pScores.perplexity + pScores.claude) / 4);
+
+  // Queries found/missing
+  const uniqueQueries = [...new Set(latestChecks.map(c => c.query_tested))];
+  const queryStats = uniqueQueries.map(q => {
+    const qChecks = latestChecks.filter(c => c.query_tested === q);
+    const platformsMentioned = qChecks.filter(c => c.brand_mentioned).length;
+    return { query: q, mentionedCount: platformsMentioned };
+  });
+
+  const top_queries_found = queryStats.filter(q => q.mentionedCount >= 2).map(q => q.query);
+  const top_queries_missing = queryStats.filter(q => q.mentionedCount === 0).map(q => q.query);
+
+  const scoresDb = JSON.parse(localStorage.getItem('db_aeo_scores') || '[]');
+  const previousScoreRow = scoresDb.find(s => s.client_id === client_id);
+  
+  let trend = 'stable';
+  if (previousScoreRow) {
+    if (overall > previousScoreRow.overall_score) trend = 'upward';
+    if (overall < previousScoreRow.overall_score) trend = 'downward';
+  }
+
+  const newScoreRow = {
+    id: previousScoreRow?.id || 'sco_' + Math.random().toString(36).substring(2, 9),
+    client_id,
+    agency_id,
+    overall_score: overall,
+    chatgpt_score: pScores.chatgpt,
+    gemini_score: pScores.gemini,
+    perplexity_score: pScores.perplexity,
+    copilot_score: pScores.claude, // using copilot_score field to mean claude for backwards compat
+    visibility_trend: trend,
+    top_queries_found,
+    top_queries_missing,
+    created_at: new Date().toISOString()
   };
 
-  // Intercept signUp
-  const originalSignUp = supabase.auth.signUp.bind(supabase.auth);
-  supabase.auth.signUp = async ({ email, password, options }) => {
-    const res = await originalSignUp({ email, password, options });
-    if (res.data?.user && !res.error) {
-      const agency_name = options?.data?.agency_name || 'My Agency';
+  if (previousScoreRow) {
+    Object.assign(previousScoreRow, newScoreRow);
+  } else {
+    scoresDb.push(newScoreRow);
+  }
+
+  localStorage.setItem('db_aeo_scores', JSON.stringify(scoresDb));
+  window.dispatchEvent(new Event('local_db_change'));
+
+  return { data: newScoreRow, error: null };
+}
+
+export const supabase = {
+  auth: {
+    signUp: async ({ email, password, options }) => {
       const full_name = options?.data?.full_name || 'Owner';
-
-      const { data: agency } = await supabase.from('agencies').insert({
+      const agency_name = options?.data?.agency_name || 'Alpha Marketing';
+      
+      const newUser = { id: 'usr_' + Math.random().toString(36).substring(2, 9), email, user_metadata: { full_name } };
+      localStorage.setItem('auth_user', JSON.stringify(newUser));
+      localStorage.setItem('auth_session', JSON.stringify({ user: newUser }));
+      
+      const agencyId = 'age_' + Math.random().toString(36).substring(2, 9);
+      
+      // Update agencies list
+      const agencies = JSON.parse(localStorage.getItem('db_agencies') || '[]');
+      const newAgency = {
+        id: agencyId,
         name: agency_name,
-        plan: 'trial'
-      }).select().single();
+        logo_url: null,
+        website: '',
+        plan: 'trial',
+        api_keys: {},
+        grok_api_key: '',
+        grok_model: 'grok-3-mini',
+        trial_ends_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+        primary_color: '#06B6D4',
+        secondary_color: '#111827',
+        created_at: new Date().toISOString()
+      };
+      agencies.push(newAgency);
+      localStorage.setItem('db_agencies', JSON.stringify(agencies));
 
-      if (agency) {
-        await supabase.from('users').insert({
-          id: res.data.user.id,
-          agency_id: agency.id,
-          full_name,
-          email,
-          role: 'admin'
-        });
+      // Update users list
+      const users = JSON.parse(localStorage.getItem('db_users') || '[]');
+      const newDbUser = {
+        id: newUser.id,
+        agency_id: agencyId,
+        full_name,
+        email,
+        role: 'admin',
+        phone: options?.data?.phone || '',
+        avatar_url: null,
+        status: 'active',
+        theme_preference: 'light',
+        created_at: new Date().toISOString()
+      };
+      users.push(newDbUser);
+      localStorage.setItem('db_users', JSON.stringify(users));
+
+      // Save onboarding checklist steps
+      const onboardingSteps = [
+        { id: '1', step_key: 'setup_agency', step_title: 'Setup Agency Profile', is_completed: true, completed_at: new Date().toISOString() },
+        { id: '2', step_key: 'add_client', step_title: 'Add First Client', is_completed: false },
+        { id: '3', step_key: 'run_seo_audit', step_title: 'Run First SEO Audit', is_completed: false },
+        { id: '4', step_key: 'connect_gbp', step_title: 'Verify GBP Listing', is_completed: false },
+        { id: '5', step_key: 'check_aeo', step_title: 'Check AEO Brand Visibility', is_completed: false },
+        { id: '6', step_key: 'compose_post', step_title: 'Create Social Post Draft', is_completed: false },
+        { id: '7', step_key: 'write_ai_content', step_title: 'Draft Blog with AI Writer', is_completed: false },
+        { id: '8', step_key: 'create_contact', step_title: 'Add Lead in CRM Contacts', is_completed: false },
+        { id: '9', step_key: 'setup_geofence', step_title: 'Draw active Geo-fence zone', is_completed: false },
+        { id: '10', step_key: 'invite_member', step_title: 'Invite Team Member', is_completed: false }
+      ].map(step => ({
+        ...step,
+        agency_id: agencyId,
+        user_id: newUser.id
+      }));
+      localStorage.setItem('db_onboarding_progress', JSON.stringify(onboardingSteps));
+
+      if (authListener) authListener('SIGNED_IN', { user: newUser });
+      return { data: { user: newUser }, error: null };
+    },
+
+    signInWithPassword: async ({ email, password }) => {
+      const users = JSON.parse(localStorage.getItem('db_users') || '[]');
+      const matched = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+      if (matched) {
+        // Admin hardcoded credential check
+        const isAdminEmail = email.toLowerCase() === 'admin@agencybuddy.io';
+        const correctPassword = isAdminEmail ? 'Admin@123' : 'password';
+        if (password !== correctPassword && password !== 'password') {
+          return { data: null, error: { message: 'Incorrect password. Please try again.' } };
+        }
+        const sessionUser = { id: matched.id, email: matched.email, user_metadata: { full_name: matched.full_name } };
+        localStorage.setItem('auth_user', JSON.stringify(sessionUser));
+        localStorage.setItem('auth_session', JSON.stringify({ user: sessionUser }));
+        if (authListener) authListener('SIGNED_IN', { user: sessionUser });
+        return { data: { user: sessionUser }, error: null };
+      }
+      return { data: null, error: { message: 'Account not found. Please sign up first.' } };
+    },
+
+    signOut: async () => {
+      localStorage.removeItem('auth_user');
+      localStorage.removeItem('auth_session');
+      if (authListener) authListener('SIGNED_OUT', null);
+      return { error: null };
+    },
+
+    getUser: async () => {
+      const u = localStorage.getItem('auth_user');
+      return { data: { user: u ? JSON.parse(u) : null }, error: null };
+    },
+
+    getSession: async () => {
+      const s = localStorage.getItem('auth_session');
+      return { data: { session: s ? JSON.parse(s) : null }, error: null };
+    },
+
+    onAuthStateChange: (callback) => {
+      authListener = callback;
+      const u = localStorage.getItem('auth_user');
+      if (u) {
+        callback('SIGNED_IN', { user: JSON.parse(u) });
+      } else {
+        callback('SIGNED_OUT', null);
+      }
+      return { data: { subscription: { unsubscribe: () => { authListener = null; } } } };
+    }
+  },
+  from: (tableName) => new SupabaseQueryBuilder(tableName),
+  functions: {
+    invoke: async (functionName, { body }) => {
+      // Intercept missing AI key before calling simulateAiGenerate
+      const agencies = JSON.parse(localStorage.getItem('db_agencies') || '[]');
+      const matchedAgency = agencies.find(a => a.id === body.agency_id);
+      
+      if (!matchedAgency || !matchedAgency.openrouter_api_key) {
+        window.dispatchEvent(new Event('show_ai_key_modal'));
+        return { data: null, error: { message: 'AI features are disabled. Add your OpenRouter API key in Settings to get started.' } };
+      }
+
+      if (body.action === 'aeo-run-check') {
+        return await runAeoCheckMultiModel(body, matchedAgency);
+      }
+      if (body.action === 'aeo-calculate-score') {
+        return await calculateAeoScore(body);
+      }
+      if (body.action === 'aeo-recommendations') {
+         // Fallthrough to simulateAiGenerate which will handle it normally,
+         // but save it to db_aeo_recommendations after.
+         const res = await simulateAiGenerate(body);
+         if (!res.error && res.data && res.data.output) {
+            const recsDb = JSON.parse(localStorage.getItem('db_aeo_recommendations') || '[]');
+            const newRecs = {
+              id: 'rec_' + Math.random().toString(36).substring(2, 9),
+              client_id: body.input.client_id,
+              agency_id: body.agency_id,
+              recommendations: JSON.parse(res.data.output),
+              created_at: new Date().toISOString()
+            };
+            recsDb.push(newRecs);
+            localStorage.setItem('db_aeo_recommendations', JSON.stringify(recsDb));
+         }
+         return res;
+      }
+
+      if (functionName === 'keyword-serp') {
+        return await simulateAiGenerate({ action: 'keyword-serp', input: body, agency_id: body.agency_id });
+      }
+
+      if (functionName === 'keyword-enrich') {
+        return await simulateAiGenerate({ action: 'keyword-enrich', input: body, agency_id: body.agency_id });
+      }
+
+      return simulateAiGenerate(body);
+    }
+  }
+};
+
+
+export async function getSERP(keyword, location, agencyId) {
+  try {
+    const cacheDb = JSON.parse(localStorage.getItem('db_keyword_serp_cache') || '[]');
+    const cachedItem = cacheDb.find(c => c.keyword.toLowerCase() === keyword.toLowerCase() && c.location === location);
+    
+    if (cachedItem) {
+      const fetchedAt = new Date(cachedItem.fetched_at);
+      const daysOld = (new Date() - fetchedAt) / (1000 * 60 * 60 * 24);
+      if (daysOld < 7) {
+        return { success: true, text: cachedItem.serp_json, cached: true, fetched_at: cachedItem.fetched_at };
       }
     }
-    return res;
-  };
-  
-  // Monkey patch to trigger local_db_change
-  ['from', 'rpc'].forEach(method => {
-    if (!supabase[method]) return;
-    const orig = supabase[method].bind(supabase);
-    supabase[method] = (...args) => {
-      const builder = orig(...args);
-      ['insert', 'update', 'delete', 'upsert'].forEach(op => {
-        if (builder[op]) {
-          const origOp = builder[op].bind(builder);
-          builder[op] = (...opArgs) => {
-            const promise = origOp(...opArgs);
-            promise.then(res => {
-              if (!res.error) window.dispatchEvent(new Event('local_db_change'));
-            });
-            return promise;
-          };
-        }
-      });
-      return builder;
+
+    const { data, error } = await supabase.functions.invoke('keyword-serp', {
+      body: { keyword, location, agency_id: agencyId }
+    });
+    if (error) throw error;
+    
+    let resultJson = null;
+    if (data && data.output) {
+      try {
+        resultJson = typeof data.output === 'string' ? JSON.parse(data.output) : data.output;
+      } catch (e) {
+        resultJson = { results: [], content_gaps: [], raw: data.output };
+      }
+    } else if (data && data.success) {
+      resultJson = data;
+    } else {
+      resultJson = { results: [], content_gaps: [], raw: data?.text || 'Failed to fetch SERP data' };
+    }
+
+    // Save to cache
+    const newCacheItem = {
+      id: 'ksc_' + Math.random().toString(36).substring(2, 9),
+      keyword,
+      location,
+      serp_json: resultJson,
+      fetched_at: new Date().toISOString()
     };
-  });
+    
+    // Remove old cache for this keyword if exists
+    const updatedCacheDb = cacheDb.filter(c => !(c.keyword.toLowerCase() === keyword.toLowerCase() && c.location === location));
+    updatedCacheDb.push(newCacheItem);
+    localStorage.setItem('db_keyword_serp_cache', JSON.stringify(updatedCacheDb));
+    window.dispatchEvent(new Event('local_db_change'));
+
+    return { success: true, text: resultJson, cached: false, fetched_at: newCacheItem.fetched_at };
+  } catch (err) {
+    console.error('SERP Error:', err);
+    return { success: false, text: err.message || err || 'Unknown error occurred' };
+  }
 }
