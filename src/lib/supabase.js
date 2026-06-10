@@ -161,16 +161,7 @@ const TOKEN_COSTS = {
   'aeo-recommendations': 2
 };
 
-function cleanJson(str) {
-  let cleaned = str.trim();
-  if (cleaned.startsWith('```')) {
-    cleaned = cleaned.replace(/^```(json)?/, '');
-  }
-  if (cleaned.endsWith('```')) {
-    cleaned = cleaned.replace(/```$/, '');
-  }
-  return cleaned.trim();
-}
+
 
 function getMockOutput(action, input) {
   const clientName = input?.clientName || 'the client';
@@ -445,44 +436,76 @@ async function generateAIContent(action, input, agencyId) {
   let contentText = aiResult.text;
   const modelName = aiResult.modelName || 'OpenRouter AI';
 
-
   if (isJsonAction) {
-    try {
-      const cleaned = cleanJson(contentText);
-      JSON.parse(cleaned);
-      return { data: { output: cleaned, is_live_api: true, model_name: modelName }, error: null };
-    } catch (jsonErr) {
-      const firstBrace = contentText.indexOf('{');
-      const firstBracket = contentText.indexOf('[');
-      let trimmedJson = '';
-      if (firstBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket)) {
-        const lastBrace = contentText.lastIndexOf('}');
-        trimmedJson = contentText.substring(firstBrace, lastBrace + 1);
-      } else if (firstBracket !== -1) {
-        const lastBracket = contentText.lastIndexOf(']');
-        trimmedJson = contentText.substring(firstBracket, lastBracket + 1);
-      }
-      
-      try {
-        JSON.parse(trimmedJson);
-        return { data: { output: trimmedJson, is_live_api: true, model_name: modelName }, error: null };
-      } catch (retryErr) {
-        // Attempt to auto-fix truncated JSON
-        try {
-          const autoFixed = trimmedJson + ']}';
-          JSON.parse(autoFixed);
-          return { data: { output: autoFixed, is_live_api: true, model_name: modelName }, error: null };
-        } catch (e2) {
-          try {
-            const autoFixed2 = trimmedJson + '}]}';
-            JSON.parse(autoFixed2);
-            return { data: { output: autoFixed2, is_live_api: true, model_name: modelName }, error: null };
-          } catch (e3) {
-            return { error: `AI output could not be parsed as structured JSON. Error: ${retryErr.message}. Output tail: ${trimmedJson.slice(-100)}` };
-          }
-        }
-      }
+    let expectedKeys = [];
+    let fallback = null;
+    let schemaDesc = '';
+    
+    switch(action) {
+      case 'seo-audit':
+        expectedKeys = ['overall_score','onpage_score','technical_score','content_score','mobile_score','findings'];
+        fallback = { overall_score: 0, findings: [] };
+        schemaDesc = 'SEO Audit (keys: overall_score, findings, etc)';
+        break;
+      case 'keyword-enrich':
+        expectedKeys = ['clusters'];
+        fallback = { clusters: [] };
+        break;
+      case 'keyword-serp':
+        expectedKeys = ['results'];
+        fallback = { results: [] };
+        break;
+      case 'aeo-audit':
+        expectedKeys = ['score', 'checks'];
+        fallback = { score: 0, checks: [] };
+        schemaDesc = 'AEO Audit (keys: score, checks)';
+        break;
+      case 'gbp-qa-seed':
+      case 'aeo-query-gen':
+      case 'keyword-research':
+        expectedKeys = []; // Array output, skip unwrap
+        fallback = [];
+        break;
+      case 'aeo-recommendations':
+        expectedKeys = []; // Array of objects
+        fallback = [];
+        break;
     }
+
+    let parsedResult = parseAIJson(contentText, expectedKeys, fallback);
+    
+    // Optional AI self-repair for critical features
+    if (!parsedResult.success && (action === 'seo-audit' || action === 'aeo-audit' || action === 'report-narrative')) {
+       console.warn(`[parseAIJson] Failed to parse ${action}, attempting AI repair...`);
+       const repairPrompt = `The following text should be valid JSON matching this structure: ${schemaDesc}. Fix it and return ONLY the corrected raw JSON, no markdown, no commentary:\n\n${contentText}`;
+       const repairAiResult = await callAI(repairPrompt, 'You are a JSON repair tool. Return only valid raw JSON.', agencyId, true, false);
+       if (repairAiResult.success) {
+         const repairedParsed = parseAIJson(repairAiResult.text, expectedKeys, fallback);
+         if (repairedParsed.success) {
+            parsedResult = repairedParsed;
+         }
+       }
+    }
+    
+    if (!parsedResult.success) {
+      return { error: 'The analysis could not be processed this time. Please try again.' };
+    }
+    
+    let finalData = parsedResult.data;
+    
+    // Type coercion and defaults per feature
+    if (action === 'seo-audit') {
+      ['overall_score','onpage_score','technical_score','content_score','mobile_score'].forEach(k => {
+        finalData[k] = Number(finalData[k]) || 0;
+      });
+      if (!Array.isArray(finalData.findings)) finalData.findings = [];
+    } else if (action === 'keyword-enrich') {
+      if (!Array.isArray(finalData.clusters)) finalData.clusters = [];
+    } else if (action === 'keyword-serp') {
+      if (!Array.isArray(finalData.results)) finalData.results = [];
+    }
+    
+    return { data: { output: JSON.stringify(finalData), is_live_api: true, model_name: modelName }, error: null };
   }
 
   return { data: { output: contentText, is_live_api: true, model_name: modelName }, error: null };
