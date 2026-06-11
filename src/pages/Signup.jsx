@@ -70,7 +70,7 @@ export default function Signup() {
 
   return (
     <div className="min-h-screen bg-page-bg bg-grid-pattern flex items-center justify-center p-4 font-sans select-none animate-fade-in">
-      <div className="w-full max-w-[420px] bg-panel-white border border-border-light rounded-lg shadow-lg p-8 flex flex-col gap-6">
+      <div className="w-full max-w-[760px] max-h-[95vh] overflow-y-auto scrollbar-thin bg-panel-white border border-border-light rounded-lg shadow-lg p-8 flex flex-col gap-6">
         
         {/* Top Header */}
         <div className="text-center space-y-2 flex flex-col items-center justify-center">
@@ -87,7 +87,7 @@ export default function Signup() {
         )}
 
         {/* Form */}
-        <form onSubmit={handleSignup} className="space-y-4">
+        <form onSubmit={handleSignup} className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-4">
           <div className="space-y-1">
             <label className="block font-mono text-[11px] font-bold text-text-secondary uppercase">
               Full Name *
@@ -140,35 +140,34 @@ export default function Signup() {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <label className="block font-mono text-[11px] font-bold text-text-secondary uppercase">
-                Password *
-              </label>
-              <input 
-                type="password" 
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••"
-                className="w-full h-9 border border-border-light rounded px-3 text-xs focus:outline-none focus:border-primary-cyan"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="block font-mono text-[11px] font-bold text-text-secondary uppercase">
-                Confirm *
-              </label>
-              <input 
-                type="password" 
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="••••••"
-                className="w-full h-9 border border-border-light rounded px-3 text-xs focus:outline-none focus:border-primary-cyan"
-              />
-            </div>
+          <div className="space-y-1">
+            <label className="block font-mono text-[11px] font-bold text-text-secondary uppercase">
+              Password *
+            </label>
+            <input 
+              type="password" 
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••"
+              className="w-full h-9 border border-border-light rounded px-3 text-xs focus:outline-none focus:border-primary-cyan"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="block font-mono text-[11px] font-bold text-text-secondary uppercase">
+              Confirm *
+            </label>
+            <input 
+              type="password" 
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="••••••"
+              className="w-full h-9 border border-border-light rounded px-3 text-xs focus:outline-none focus:border-primary-cyan"
+            />
           </div>
 
           {/* Terms checkbox */}
-          <label className="flex items-start gap-2 pt-1 cursor-pointer">
+          <label className="flex items-start gap-2 pt-1 cursor-pointer sm:col-span-2">
             <input 
               type="checkbox" 
               checked={agreeTerms}
@@ -183,7 +182,7 @@ export default function Signup() {
           <button 
             type="submit" 
             disabled={loading}
-            className="w-full h-10 bg-primary-cyan hover:bg-primary-cyan-hover text-white rounded text-xs font-semibold transition-all duration-150 cursor-pointer flex items-center justify-center"
+            className="sm:col-span-2 w-full h-10 bg-primary-cyan hover:bg-primary-cyan-hover text-white rounded text-xs font-semibold transition-all duration-150 cursor-pointer flex items-center justify-center"
           >
             {loading ? (
               <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

@@ -70,7 +70,7 @@ export default function Onboarding() {
 
   return (
     <div className="min-h-screen bg-page-bg bg-grid-pattern flex items-center justify-center p-4 font-sans select-none animate-fade-in">
-      <div className="w-full max-w-[500px] bg-panel-white border border-border-light rounded-xl shadow-2xl p-8 flex flex-col gap-6 relative overflow-hidden">
+      <div className="w-full max-w-[760px] max-h-[95vh] overflow-y-auto scrollbar-thin bg-panel-white border border-border-light rounded-xl shadow-2xl p-8 flex flex-col gap-6 relative overflow-hidden">
         
         {/* Step Indicator */}
         <div className="absolute top-0 left-0 w-full h-1 bg-slate-100">
@@ -90,7 +90,7 @@ export default function Onboarding() {
           </p>
         </div>
 
-        <div className="space-y-5 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 text-xs">
           
           {/* API Key */}
           <div className="space-y-1.5 relative">
@@ -190,7 +190,7 @@ export default function Onboarding() {
         </div>
 
         {/* Buttons */}
-        <div className="flex flex-col gap-3 mt-4">
+        <div className="flex flex-col gap-3 mt-4 sm:col-span-2">
           <button 
             onClick={handleNext}
             disabled={loading}
