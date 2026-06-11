@@ -170,3 +170,28 @@
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite linear;
 }
+
+/* DARK MODE — Universal Highlight & Light-tint Overrides */
+/* Static selected/tint states: override hardcoded light hexes with a dark cyan tint */
+:root[data-theme="dark"] table tbody tr.selected,
+:root[data-theme="dark"] .table-row.selected,
+:root[data-theme="dark"] .table-row[aria-selected="true"],
+:root[data-theme="dark"] .bg-\[\#F0FDFA\],
+:root[data-theme="dark"] .bg-\[\#ECFEFF\] {
+  background-color: #14323B !important;
+}
+
+/* Selected row border */
+:root[data-theme="dark"] table tbody tr.selected,
+:root[data-theme="dark"] .table-row.selected,
+:root[data-theme="dark"] .table-row[aria-selected="true"] {
+  border-left: 2px solid #06B6D4;
+}
+
+/* Hover states (defined after to ensure hover overrides static) */
+:root[data-theme="dark"] table tbody tr:hover,
+:root[data-theme="dark"] .table-row:hover,
+:root[data-theme="dark"] .hover\:bg-\[\#F0FDFA\]:hover,
+:root[data-theme="dark"] .hover\:bg-\[\#ECFEFF\]:hover {
+  background-color: #1C2A33 !important;
+}
