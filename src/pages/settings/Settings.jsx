@@ -59,12 +59,14 @@ function GeneralSettings() {
   const { agency, theme, updateTheme } = useApp();
   const [name, setName] = useState('');
   const [web, setWeb] = useState('');
+  const [autoAeo, setAutoAeo] = useState(true);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     if (agency) {
       setName(agency.name || '');
       setWeb(agency.website || '');
+      setAutoAeo(agency.auto_aeo_on_client_add !== false);
     }
   }, [agency]);
 
@@ -76,7 +78,7 @@ function GeneralSettings() {
       const agencies = JSON.parse(localStorage.getItem('db_agencies') || '[]');
       const updated = agencies.map(a =>
         a.id === agency.id
-          ? { ...a, name: name.trim(), website: web.trim() }
+          ? { ...a, name: name.trim(), website: web.trim(), auto_aeo_on_client_add: autoAeo }
           : a
       );
       localStorage.setItem('db_agencies', JSON.stringify(updated));
@@ -129,6 +131,24 @@ function GeneralSettings() {
             </button>
           ))}
         </div>
+      </div>
+
+      <div className="space-y-2 pt-4 border-t border-border-light">
+        <label className="block font-mono text-[11px] font-bold text-text-secondary uppercase">AUTOMATION PREFERENCES</label>
+        <label className="flex items-start gap-2 cursor-pointer mt-2">
+          <input 
+            type="checkbox" 
+            checked={autoAeo}
+            onChange={(e) => setAutoAeo(e.target.checked)}
+            className="text-primary-cyan mt-1" 
+          />
+          <div className="flex flex-col">
+            <span className="font-medium text-text-primary">Auto-run AEO audit on new clients</span>
+            <span className="text-[10px] text-text-secondary mt-0.5 max-w-sm">
+              AEO uses Perplexity Sonar and draws from your OpenRouter balance. Turn off to run AEO manually instead. SEO audits always run automatically (free).
+            </span>
+          </div>
+        </label>
       </div>
 
       <div className="flex items-center gap-3 pt-2">

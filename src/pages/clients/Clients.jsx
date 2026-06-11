@@ -153,12 +153,20 @@ export default function Clients() {
         contact_email: contactEmail,
         contact_phone: contactPhone,
         status: 'active',
-        notes
+        notes,
+        seo_audit_status: 'pending',
+        aeo_audit_status: 'pending',
+        last_auto_audit_at: null
       };
 
       const { data, error } = await supabase.from('clients').insert(newClient);
       
       if (!error) {
+        // Trigger background audit asynchronously (fire and forget)
+        supabase.functions.invoke('ai-generate', {
+          body: { action: 'auto-audit-client', clientId: data.id, agencyId: agency?.id || 'age_default_id' }
+        }).catch(err => console.error("Auto audit trigger failed", err));
+
         // Increment onboarding step
         const onboardingSteps = JSON.parse(localStorage.getItem('db_onboarding_progress') || '[]');
         const updatedOnboarding = onboardingSteps.map(step => 
@@ -971,12 +979,20 @@ function AddClientForm() {
         twitter_url: twitter.trim(),
         gbp_url: gbp.trim(),
         status: 'active',
-        notes: notes.trim()
+        notes: notes.trim(),
+        seo_audit_status: 'pending',
+        aeo_audit_status: 'pending',
+        last_auto_audit_at: null
       };
 
       const { data, error } = await supabase.from('clients').insert(newClient);
       
       if (!error && data) {
+        // Trigger background audit asynchronously (fire and forget)
+        supabase.functions.invoke('ai-generate', {
+          body: { action: 'auto-audit-client', clientId: data.id, agencyId: agency?.id || 'age_default_id' }
+        }).catch(err => console.error("Auto audit trigger failed", err));
+
         // Increment onboarding step
         const onboardingSteps = JSON.parse(localStorage.getItem('db_onboarding_progress') || '[]');
         const updatedOnboarding = onboardingSteps.map(step => 

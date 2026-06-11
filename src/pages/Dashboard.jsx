@@ -233,7 +233,9 @@ export default function Dashboard() {
           }
 
           // 9. Activity Check
-          if (lastActiveDate < sevenDaysAgo) {
+          if (client.seo_audit_status === 'running' || client.aeo_audit_status === 'running') {
+            signals.push({ module: 'activity', text: `AI Auditing in progress...`, type: 'amber', icon: <Globe size={16} className="text-warning-amber animate-pulse" />, indicator: <Badge text="AUDITING" type="amber" /> });
+          } else if (lastActiveDate < sevenDaysAgo) {
             isUrgent = true;
             signals.push({ module: 'activity', text: `⚠ No activity in 7+ days`, type: 'red', icon: <Zap size={16} className="text-[#EF4444]" />, indicator: <AlertTriangle size={14} className="text-error-red" /> });
           }

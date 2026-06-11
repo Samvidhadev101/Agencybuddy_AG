@@ -781,6 +781,7 @@ export const supabase = {
         trial_ends_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
         primary_color: '#06B6D4',
         secondary_color: '#111827',
+        auto_aeo_on_client_add: true,
         created_at: new Date().toISOString()
       };
       agencies.push(newAgency);
@@ -908,6 +909,67 @@ export const supabase = {
             localStorage.setItem('db_aeo_recommendations', JSON.stringify(recsDb));
          }
          return res;
+      }
+
+      if (body.action === 'auto-audit-client') {
+        const { clientId, agencyId } = body;
+        
+        // Fire and forget worker
+        setTimeout(async () => {
+          try {
+            const updateStatus = (field, value) => {
+              const clientsDb = JSON.parse(localStorage.getItem('db_clients') || '[]');
+              const updated = clientsDb.map(c => c.id === clientId ? { ...c, [field]: value } : c);
+              localStorage.setItem('db_clients', JSON.stringify(updated));
+              window.dispatchEvent(new Event('local_db_change'));
+            };
+            
+            const clientsDb = JSON.parse(localStorage.getItem('db_clients') || '[]');
+            const client = clientsDb.find(c => c.id === clientId);
+            if (!client) return;
+            
+            // SEO Audit
+            if (client.website) {
+              updateStatus('seo_audit_status', 'running');
+              const seoRes = await simulateAiGenerate({ action: 'seo-audit', input: { url: client.website, client_id: clientId }, agency_id: agencyId });
+              updateStatus('seo_audit_status', seoRes.error ? 'failed' : 'complete');
+            } else {
+              updateStatus('seo_audit_status', 'skipped');
+            }
+            
+            // AEO Baseline
+            if (matchedAgency.auto_aeo_on_client_add !== false && client.name) {
+              updateStatus('aeo_audit_status', 'running');
+              const queriesRes = await simulateAiGenerate({ action: 'aeo-generate-queries', input: { business_name: client.name, industry: client.industry }, agency_id: agencyId });
+              
+              if (!queriesRes.error && queriesRes.data && queriesRes.data.output) {
+                let outObj = queriesRes.data.output;
+                if (typeof outObj === 'string') {
+                  try { outObj = JSON.parse(outObj); } catch(e) {}
+                }
+                const queries = outObj?.queries || [];
+                const topQueries = queries.slice(0, 5);
+                
+                for (const q of topQueries) {
+                  await runAeoCheckMultiModel({ action: 'aeo-run-check', input: { query: q, brand_name: client.name, competitors: '', client_id: clientId }, agency_id: agencyId }, matchedAgency);
+                }
+                
+                await calculateAeoScore({ action: 'aeo-calculate-score', input: { client_id: clientId }, agency_id: agencyId });
+                updateStatus('aeo_audit_status', 'complete');
+              } else {
+                updateStatus('aeo_audit_status', 'failed');
+              }
+            } else {
+              updateStatus('aeo_audit_status', 'skipped');
+            }
+            
+            updateStatus('last_auto_audit_at', new Date().toISOString());
+          } catch (e) {
+            console.error('Auto audit failed', e);
+          }
+        }, 100);
+        
+        return { data: { status: 'started' }, error: null };
       }
 
       if (functionName === 'keyword-serp') {

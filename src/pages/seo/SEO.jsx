@@ -67,6 +67,40 @@ function SEODashboard() {
     { date: '05-27', rank: 3 }
   ];
 
+  if (activeClient?.seo_audit_status === 'running') {
+    return (
+      <div className="bg-panel-white border border-border-light rounded-lg p-12 text-center flex flex-col items-center justify-center">
+        <div className="w-16 h-16 bg-primary-cyan/10 text-primary-cyan rounded-full flex items-center justify-center mb-4">
+          <Loader2 size={32} className="animate-spin" />
+        </div>
+        <h3 className="text-lg font-semibold text-text-primary mb-2">Running Initial SEO Audit...</h3>
+        <p className="text-sm text-text-secondary max-w-sm">
+          Please wait while our AI analyzes {activeClient.website || 'the website'}. This takes about 30 seconds.
+        </p>
+      </div>
+    );
+  }
+
+  if (activeClient?.seo_audit_status === 'failed' && audits.length === 0) {
+    return (
+      <div className="bg-panel-white border border-border-light border-dashed rounded-lg p-12 text-center flex flex-col items-center justify-center">
+        <div className="w-16 h-16 bg-error-red/10 text-error-red rounded-full flex items-center justify-center mb-4">
+          <AlertCircle size={32} />
+        </div>
+        <h3 className="text-lg font-semibold text-text-primary mb-2">Initial Audit Failed</h3>
+        <p className="text-sm text-text-secondary max-w-sm mb-6">
+          The automatic SEO audit couldn't complete. You can try running it manually.
+        </p>
+        <button 
+          onClick={() => navigate('/seo/audit')}
+          className="bg-primary-cyan hover:bg-primary-cyan-hover text-white font-medium text-sm px-6 py-2 rounded transition-colors cursor-pointer"
+        >
+          Run Manual Audit
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 font-sans animate-fade-in">
       
