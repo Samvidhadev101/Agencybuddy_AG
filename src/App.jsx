@@ -90,6 +90,12 @@ function AuthenticatedLayout() {
               <Route path="/support/*" element={<Support />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
+            
+            <div className="mt-12 pb-4">
+              <p className="text-center text-[10px] text-text-muted font-mono">
+                Samvidha.ai © 2026 · All rights reserved
+              </p>
+            </div>
           </div>
         </div>
       </div>

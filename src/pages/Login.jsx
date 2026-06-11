@@ -128,7 +128,7 @@ export default function Login() {
         </div>
 
         <p className="text-center text-[10px] text-text-muted mt-4 font-mono">
-          Agency Buddy © {new Date().getFullYear()} · All data stored locally in your browser
+          Samvidha.ai © 2026 · All rights reserved
         </p>
       </div>
     </div>
