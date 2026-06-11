@@ -196,7 +196,7 @@ export default function Signup() {
         {/* Footer Subtitle */}
         <div className="text-center space-y-3 border-t border-border-light pt-4">
           <p className="font-mono text-[11px] font-semibold text-text-secondary leading-none">
-            14-DAY FREE TRIAL · 20 AI TOKENS · 3 CLIENT SLOTS
+            14-DAY FREE TRIAL · 3 CLIENT SLOTS
           </p>
           <p className="text-xs text-text-secondary">
             Already have an account?{' '}
