@@ -6,6 +6,7 @@ import Topbar from './components/Topbar';
 import ChatbotWidget from './components/ChatbotWidget';
 import ExitFeedbackGate from './components/ExitFeedbackGate';
 import AiConnectionModal from './components/AiConnectionModal';
+import TrialBanner from './components/TrialBanner';
 
 // Pages imports
 import Login from './pages/Login';
@@ -64,6 +65,7 @@ function AuthenticatedLayout() {
           
           {/* Page Scroll Content */}
           <div className="flex-1 overflow-y-auto bg-page-bg bg-grid-pattern p-6 relative">
+            <TrialBanner />
             <Routes>
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/clients" element={<Clients />} />
