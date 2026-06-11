@@ -195,3 +195,10 @@
 :root[data-theme="dark"] .hover\:bg-\[\#ECFEFF\]:hover {
   background-color: #1C2A33 !important;
 }
+
+.sidebar-logo-text {
+  color: #7EC8E3;
+  font-weight: 700;
+  font-size: 21px;
+  letter-spacing: -0.01em;
+}

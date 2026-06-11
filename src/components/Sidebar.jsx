@@ -63,7 +63,7 @@ export default function Sidebar() {
       
       {/* Brand Header */}
       <div className="h-14 flex items-center gap-2.5 px-4 border-b border-border-light bg-panel-white">
-        <img src="/logo.png" alt="Agency Buddy" className="h-10 w-auto object-contain" />
+        <span className="sidebar-logo-text font-sans">Agency Buddy</span>
       </div>
 
       {/* Main Navigation Scroll Area */}
