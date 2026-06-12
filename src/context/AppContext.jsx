@@ -102,9 +102,14 @@ export function AppProvider({ children }) {
           .select('*')
           .eq('agency_id', userProfileData.agency_id);
 
-        if (clientList && userProfileData.role === 'custom' && userProfileData.custom_permissions?.client_scope === 'selected') {
-          const assignedIds = userProfileData.assigned_client_ids || [];
-          clientList = clientList.filter(c => assignedIds.includes(c.id));
+        if (clientList) {
+          if (userProfileData.role === 'executive') {
+            const assignedIds = userProfileData.assigned_client_ids || [];
+            clientList = clientList.filter(c => assignedIds.includes(c.id));
+          } else if (userProfileData.role === 'custom' && userProfileData.custom_permissions?.client_scope === 'selected') {
+            const assignedIds = userProfileData.assigned_client_ids || [];
+            clientList = clientList.filter(c => assignedIds.includes(c.id));
+          }
         }
 
         setClients(clientList || []);
