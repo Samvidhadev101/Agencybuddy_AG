@@ -1,3 +1,4 @@
+import ClientAvatar from '../ClientAvatar';
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 

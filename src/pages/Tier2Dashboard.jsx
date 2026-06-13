@@ -1,3 +1,4 @@
+import ClientAvatar from '../components/ClientAvatar';
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
@@ -342,9 +343,7 @@ export default function Tier2Dashboard() {
             {/* Box Header */}
             <div className="p-4 border-b border-border-light flex items-center justify-between bg-slate-50/50">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-cyan-100 flex items-center justify-center text-primary-cyan font-bold text-lg">
-                  {client.name.charAt(0)}
-                </div>
+                <ClientAvatar client={client} size="md" />
                 <div>
                   <h3 className="font-bold text-text-primary text-sm line-clamp-1">{client.name}</h3>
                   <p className="text-xs text-text-muted">{client.industry || 'Digital Marketing'}</p>

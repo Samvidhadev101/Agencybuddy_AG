@@ -1,3 +1,4 @@
+import ClientAvatar from '../../components/ClientAvatar';
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';

@@ -1,3 +1,4 @@
+import ClientAvatar from '../../components/ClientAvatar';
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
@@ -76,6 +77,8 @@ export default function Clients() {
   const [contactEmail, setContactEmail] = useState('');
   const [contactPhone, setContactPhone] = useState('');
   const [notes, setNotes] = useState('');
+  const [logoFile, setLogoFile] = useState(null);
+  const [logoPreview, setLogoPreview] = useState(null);
   const [formError, setFormError] = useState('');
 
   // Detail view states
@@ -156,8 +159,19 @@ export default function Clients() {
         notes,
         seo_audit_status: 'pending',
         aeo_audit_status: 'pending',
-        last_auto_audit_at: null
+        last_auto_audit_at: null,
+        logo_url: null
       };
+
+      if (logoFile) {
+        const ext = logoFile.name.split('.').pop();
+        const filePath = `logo_${Date.now()}.${ext}`;
+        const { data: uploadData } = await supabase.storage.from('client-logos').upload(filePath, logoFile);
+        if (uploadData) {
+          const { data: urlData } = supabase.storage.from('client-logos').getPublicUrl(uploadData.path);
+          if (urlData) newClient.logo_url = urlData.publicUrl;
+        }
+      }
 
       const { data, error } = await supabase.from('clients').insert(newClient);
       
@@ -365,9 +379,7 @@ export default function Clients() {
                   <tr key={c.id} className="hover:bg-[#F0FDFA] transition-colors">
                     <td className="py-3 px-4 font-medium text-text-primary">
                       <div className="flex items-center gap-2">
-                        <span className="w-7 h-7 rounded-full bg-primary-cyan/10 text-primary-cyan text-xs font-bold flex items-center justify-center">
-                          {c.name.charAt(0)}
-                        </span>
+                        <ClientAvatar client={c} size="sm" className="w-7 h-7 text-xs" />
                         <div className="flex flex-col">
                           <Link to={`/clients/${c.id}`} className="font-semibold hover:text-primary-cyan transition-colors">
                             {c.name}
@@ -437,6 +449,29 @@ export default function Clients() {
               )}
 
               <form onSubmit={handleAddClient} className="space-y-3 font-sans">
+                <div className="space-y-1 mb-4">
+                  <label className="block font-mono text-[10px] font-bold text-text-secondary uppercase mb-1">
+                    Client Logo
+                  </label>
+                  <div className="border border-dashed border-border-medium rounded-md p-3 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-50 transition-colors" onClick={() => document.getElementById('modal-logo-upload').click()}>
+                    {logoPreview ? (
+                      <img src={logoPreview} alt="Logo preview" className="h-12 w-12 object-contain rounded-full border border-border-light shadow-sm" />
+                    ) : (
+                      <span className="text-[10px] text-text-muted">Click to upload logo (Max 2MB)</span>
+                    )}
+                    <input id="modal-logo-upload" type="file" className="hidden" accept="image/*" onChange={(e) => {
+                      const file = e.target.files[0];
+                      if (file) {
+                        if (file.size > 2 * 1024 * 1024) { setFormError("Logo must be less than 2MB"); return; }
+                        setLogoFile(file);
+                        const reader = new FileReader();
+                        reader.onload = () => setLogoPreview(reader.result);
+                        reader.readAsDataURL(file);
+                      }
+                    }} />
+                  </div>
+                </div>
+
                 <div className="space-y-1">
                   <label className="block font-mono text-[10px] font-bold text-text-secondary uppercase">
                     Client / Business Name *
@@ -951,6 +986,8 @@ function AddClientForm() {
   const [twitter, setTwitter] = useState('');
   const [gbp, setGbp] = useState('');
   const [notes, setNotes] = useState('');
+  const [logoFile, setLogoFile] = useState(null);
+  const [logoPreview, setLogoPreview] = useState(null);
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -982,8 +1019,19 @@ function AddClientForm() {
         notes: notes.trim(),
         seo_audit_status: 'pending',
         aeo_audit_status: 'pending',
-        last_auto_audit_at: null
+        last_auto_audit_at: null,
+        logo_url: null
       };
+
+      if (logoFile) {
+        const ext = logoFile.name.split('.').pop();
+        const filePath = `logo_${Date.now()}.${ext}`;
+        const { data: uploadData } = await supabase.storage.from('client-logos').upload(filePath, logoFile);
+        if (uploadData) {
+          const { data: urlData } = supabase.storage.from('client-logos').getPublicUrl(uploadData.path);
+          if (urlData) newClient.logo_url = urlData.publicUrl;
+        }
+      }
 
       const { data, error } = await supabase.from('clients').insert(newClient);
       
@@ -1061,6 +1109,29 @@ function AddClientForm() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="space-y-1">
+            <label className="block font-mono text-[10px] font-bold text-text-secondary uppercase">
+              Client Logo
+            </label>
+            <div className="border border-dashed border-border-medium rounded-md p-4 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-50 transition-colors w-full md:w-1/2" onClick={() => document.getElementById('full-logo-upload').click()}>
+              {logoPreview ? (
+                <img src={logoPreview} alt="Logo preview" className="h-16 w-16 object-contain rounded-full border border-border-light shadow-sm" />
+              ) : (
+                <span className="text-xs text-text-muted">Click to upload logo (Max 2MB)</span>
+              )}
+              <input id="full-logo-upload" type="file" className="hidden" accept="image/*" onChange={(e) => {
+                const file = e.target.files[0];
+                if (file) {
+                  if (file.size > 2 * 1024 * 1024) { setFormError("Logo must be less than 2MB"); return; }
+                  setLogoFile(file);
+                  const reader = new FileReader();
+                  reader.onload = () => setLogoPreview(reader.result);
+                  reader.readAsDataURL(file);
+                }
+              }} />
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="block font-mono text-[10px] font-bold text-text-secondary uppercase">
@@ -1248,6 +1319,9 @@ function EditClientForm({ clientId }) {
   const [gbp, setGbp] = useState('');
   const [notes, setNotes] = useState('');
   const [status, setStatus] = useState('active');
+  const [logoFile, setLogoFile] = useState(null);
+  const [logoPreview, setLogoPreview] = useState(null);
+  const [logoRemoved, setLogoRemoved] = useState(false);
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -1267,6 +1341,7 @@ function EditClientForm({ clientId }) {
       setGbp(client.gbp_url || '');
       setNotes(client.notes || '');
       setStatus(client.status || 'active');
+      setLogoPreview(client.logo_url || null);
     }
   }, [clientId, clients]);
 
@@ -1281,7 +1356,7 @@ function EditClientForm({ clientId }) {
 
     setSaving(true);
     try {
-      const { error } = await supabase.from('clients').eq('id', clientId).update({
+      const updateData = {
         name: name.trim(),
         industry: industry.trim(),
         website: website.trim(),
@@ -1295,7 +1370,21 @@ function EditClientForm({ clientId }) {
         gbp_url: gbp.trim(),
         status,
         notes: notes.trim()
-      });
+      };
+
+      if (logoRemoved) {
+        updateData.logo_url = null;
+      } else if (logoFile) {
+        const ext = logoFile.name.split('.').pop();
+        const filePath = `logo_${Date.now()}.${ext}`;
+        const { data: uploadData } = await supabase.storage.from('client-logos').upload(filePath, logoFile);
+        if (uploadData) {
+          const { data: urlData } = supabase.storage.from('client-logos').getPublicUrl(uploadData.path);
+          if (urlData) updateData.logo_url = urlData.publicUrl;
+        }
+      }
+
+      const { error } = await supabase.from('clients').eq('id', clientId).update(updateData);
       
       if (!error) {
         window.dispatchEvent(new Event('local_db_change'));
@@ -1331,6 +1420,37 @@ function EditClientForm({ clientId }) {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="space-y-1">
+            <label className="block font-mono text-[10px] font-bold text-text-secondary uppercase">
+              Client Logo
+            </label>
+            <div className="flex items-center gap-4">
+              <div className="border border-dashed border-border-medium rounded-md p-4 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-50 transition-colors w-full md:w-1/2" onClick={() => document.getElementById('edit-logo-upload').click()}>
+                {logoPreview ? (
+                  <img src={logoPreview} alt="Logo preview" className="h-16 w-16 object-contain rounded-full border border-border-light shadow-sm" />
+                ) : (
+                  <span className="text-xs text-text-muted">Click to upload logo (Max 2MB)</span>
+                )}
+                <input id="edit-logo-upload" type="file" className="hidden" accept="image/*" onChange={(e) => {
+                  const file = e.target.files[0];
+                  if (file) {
+                    if (file.size > 2 * 1024 * 1024) { setFormError("Logo must be less than 2MB"); return; }
+                    setLogoFile(file);
+                    setLogoRemoved(false);
+                    const reader = new FileReader();
+                    reader.onload = () => setLogoPreview(reader.result);
+                    reader.readAsDataURL(file);
+                  }
+                }} />
+              </div>
+              {logoPreview && (
+                <button type="button" onClick={() => { setLogoPreview(null); setLogoFile(null); setLogoRemoved(true); }} className="px-3 py-1.5 border border-border-light rounded text-xs text-error-red hover:bg-red-50 cursor-pointer transition-colors">
+                  Remove Logo
+                </button>
+              )}
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="block font-mono text-[10px] font-bold text-text-secondary uppercase">

@@ -875,6 +875,40 @@ export const supabase = {
     }
   },
   from: (tableName) => new SupabaseQueryBuilder(tableName),
+  storage: {
+    from: (bucket) => ({
+      upload: async (path, file) => {
+        return new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const base64data = reader.result;
+            const dbKey = `db_storage_${bucket}`;
+            const storageDb = JSON.parse(localStorage.getItem(dbKey) || '{}');
+            storageDb[path] = base64data;
+            localStorage.setItem(dbKey, JSON.stringify(storageDb));
+            window.dispatchEvent(new Event('local_db_change'));
+            resolve({ data: { path }, error: null });
+          };
+          reader.onerror = () => resolve({ data: null, error: { message: 'Failed to read file' } });
+          reader.readAsDataURL(file);
+        });
+      },
+      getPublicUrl: (path) => {
+        const dbKey = `db_storage_${bucket}`;
+        const storageDb = JSON.parse(localStorage.getItem(dbKey) || '{}');
+        const dataUrl = storageDb[path] || '';
+        return { data: { publicUrl: dataUrl } };
+      },
+      remove: async (paths) => {
+        const dbKey = `db_storage_${bucket}`;
+        const storageDb = JSON.parse(localStorage.getItem(dbKey) || '{}');
+        paths.forEach(p => delete storageDb[p]);
+        localStorage.setItem(dbKey, JSON.stringify(storageDb));
+        window.dispatchEvent(new Event('local_db_change'));
+        return { data: paths, error: null };
+      }
+    })
+  },
   functions: {
     invoke: async (functionName, { body }) => {
       // Intercept missing AI key before calling simulateAiGenerate

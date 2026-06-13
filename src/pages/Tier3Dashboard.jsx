@@ -1,3 +1,4 @@
+import ClientAvatar from '../components/ClientAvatar';
 import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { supabase } from '../lib/supabase';
